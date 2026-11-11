@@ -3,6 +3,15 @@ BeforeAll {
 }
 
 Describe 'Update-ConfigRepo' {
+    It 'treats a remote without main as nothing to pull' {
+        $origin = Join-Path $TestDrive 'empty.git'
+        $clone = Join-Path $TestDrive 'clone'
+        & git init -q --bare $origin
+        & git init -q -b main $clone
+        & git -C $clone remote add origin $origin
+        $r = Update-ConfigRepo $clone
+        $r.Ok | Should -BeTrue
+    }
     It 'does not abort a rebase it did not start' {
         $repo = Join-Path $TestDrive 'plain'
         New-Item -ItemType Directory -Force -Path (Join-Path $repo '.git') | Out-Null

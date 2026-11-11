@@ -4,6 +4,10 @@ function Invoke-RepoGit([string]$RepoRoot, [string[]]$GitArgs) { Invoke-Git $Rep
 
 function Update-ConfigRepo([string]$RepoRoot) {
     try {
+        # A brand-new remote with no main yet has nothing to pull.
+        $heads = ''
+        try { $heads = (Invoke-Git $RepoRoot @('ls-remote', '--heads', 'origin', 'main')).Trim() } catch { throw }
+        if (-not $heads) { return @{ Ok = $true; Error = '' } }
         Invoke-Git $RepoRoot @('pull', '--quiet', '--rebase', '--autostash', 'origin', 'main') | Out-Null
         return @{ Ok = $true; Error = '' }
     } catch {
