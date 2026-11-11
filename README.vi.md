@@ -130,7 +130,7 @@ Trong bản clone:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
-# Co the khoi phuc ban sao luu; thay moc vi du bang moc cua ban.
+# Có thể khôi phục bản sao lưu; thay mốc ví dụ bằng mốc của bạn.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1 -RestoreBackup 20261111-120000
 ```
 
