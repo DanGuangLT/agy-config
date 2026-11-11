@@ -1,7 +1,7 @@
 # pip-tool (Python CLI that installs its own agy skill) and marketplace (agy plugin store) sources. ASCII-only file.
 
 function Get-PythonVersion([string]$Python) {
-    $r = Invoke-External $Python @('-c', "import sys;print('%d.%d' % sys.version_info[:2])")
+    $r = Invoke-External $Python @('-X', 'utf8', '-c', "import sys;print('%d.%d' % sys.version_info[:2])")
     if ($r.ExitCode -ne 0) { return $null }
     $v = $null
     if ([version]::TryParse($r.StdOut.Trim(), [ref]$v)) { return $v }
@@ -15,11 +15,12 @@ function Install-PipTool($Source, [string]$Version) {
     if (-not $pv -or $pv -lt [version]'3.10') { return @{ Ok = $false; Error = "python-too-old ($pv); need 3.10+" } }
 
     $spec = if ($Version -and $Version -ne 'latest') { $Source.package + '==' + $Version } else { $Source.package }
-    $r = Invoke-External $py @('-m', 'pip', 'install', '--user', '--upgrade', '--disable-pip-version-check', '-q', $spec)
+    $r = Invoke-External $py @('-X', 'utf8', '-m', 'pip', 'install', '--user', '--upgrade', '--disable-pip-version-check', '-q', $spec)
     if ($r.ExitCode -ne 0) { return @{ Ok = $false; Error = "pip install $spec failed: $($r.StdErr)" } }
 
     if ($Source.postInstall) {
-        $s = Invoke-External $py @('-c', "import sysconfig;print(sysconfig.get_path('scripts','nt_user'))")
+        $s = Invoke-External $py @('-X', 'utf8', '-c', "import sysconfig;print(sysconfig.get_path('scripts','nt_user'))")
+        if ($s.ExitCode -ne 0) { return @{ Ok = $false; Error = "python sysconfig failed: $($s.StdErr)" } }
         $cmd = if ($Source.command) { $Source.command } else { @($Source.provides)[0] }
         $exe = Join-Path $s.StdOut.Trim() ($cmd + '.exe')
         $r2 = Invoke-External $exe @($Source.postInstall)

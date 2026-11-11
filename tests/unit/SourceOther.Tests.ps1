@@ -41,6 +41,28 @@ Describe 'Other sources' {
             Get-LatestVersion $script:graphify | Should -Be '1.2.3'
             Should -Invoke Invoke-Http -Times 1 -ParameterFilter { $Uri -eq 'https://pypi.org/pypi/graphifyy/json' }
         }
+        It 'runs every Python call in UTF-8 mode for non-ASCII scripts paths' {
+            $scripts = Join-Path $TestDrive ('pyscripts-' + [char]0x1EAD)
+            Mock Resolve-Tool { 'python.exe' }
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = "3.14`n"; StdErr = '' } } -ParameterFilter { ($Arguments -join ' ') -match 'version_info' }
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = "$scripts`n"; StdErr = '' } } -ParameterFilter { ($Arguments -join ' ') -match 'sysconfig' }
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = ''; StdErr = '' } } -ParameterFilter { $Arguments -contains 'pip' -or $Exe -like '*graphify.exe' }
+            (Install-PipTool $script:graphify '0.9.100').Ok | Should -BeTrue
+            Should -Invoke Invoke-External -Times 3 -Exactly -ParameterFilter {
+                $Exe -eq 'python.exe' -and $Arguments[0] -eq '-X' -and $Arguments[1] -eq 'utf8' -and $Arguments[2] -in @('-c', '-m')
+            }
+            Should -Invoke Invoke-External -Times 1 -Exactly -ParameterFilter { $Exe -eq (Join-Path $scripts 'graphify.exe') }
+        }
+        It 'returns a failure without throwing when sysconfig exits nonzero' {
+            Mock Resolve-Tool { 'python.exe' }
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = "3.14`n"; StdErr = '' } } -ParameterFilter { ($Arguments -join ' ') -match 'version_info' }
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = ''; StdErr = '' } } -ParameterFilter { $Arguments -contains 'pip' }
+            Mock Invoke-External { @{ ExitCode = 1; StdOut = ''; StdErr = 'sysconfig failed' } } -ParameterFilter { ($Arguments -join ' ') -match 'sysconfig' }
+            $r = Install-PipTool $script:graphify '0.9.100'
+            $r.Ok | Should -BeFalse
+            $r.Error | Should -Match 'sysconfig.*failed'
+            Should -Invoke Invoke-External -Times 0 -Exactly -ParameterFilter { $Exe -like '*graphify.exe' }
+        }
         It 'uninstall removes only the provided skill folder' {
             $skill = Join-Path (Get-AgyPaths).SkillsDir 'graphify'
             New-Item -ItemType Directory -Force -Path $skill | Out-Null

@@ -20,7 +20,7 @@ This repository configures the Antigravity CLI (`agy`) on Windows. Contributions
    }
    ```
 
-4. Add a row to [THIRD_PARTY.md](THIRD_PARTY.md) with the source, license, and exact `repo` URL. For a `pip-tool`, list its `package` name and PyPI link instead. Marketplace entries identify the plugin and marketplace. Do not copy upstream skills into this repo.
+4. For every new core source, add both a row to [THIRD_PARTY.md](THIRD_PARTY.md) and a locked version under its `id` in [core/sources.lock.json](core/sources.lock.json). The row includes the source, license, and exact `repo` URL. For a `pip-tool`, list its `package` name and PyPI link instead. Marketplace entries identify the plugin and marketplace. Profile sources need a version in that profile's `sources.lock.json`; their repo URL is recorded in `sources.json`, and they do not need a THIRD_PARTY row. Do not copy upstream skills into this repo.
 5. On a configured owner machine, run `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\update.ps1 -NoPush` to install and validate candidate upstream versions locally. This changes installed sources and local pending state; it does not push a branch or open a PR. Review the update log and record the tested commits or package versions in the appropriate `sources.lock.json` for your PR. If you cannot run the installation locally, let CI check repository structure and state that limitation in the PR; CI does not replace a live source installation check.
 6. Add tests for behavior changes, run the checks below, and open a PR with the supplied template. Include what changed, why, and the validation results.
 
@@ -46,7 +46,7 @@ if ($issues.Count -gt 0) { throw 'PSScriptAnalyzer reported errors.' }
 
 The test runner requires Pester 5.5 or newer and installs it for the current user if missing. To run just the validator tests, append `-Path tests/unit/ValidateRepo.Tests.ps1` to the test command. Run the whole suite again before submitting.
 
-Repository validation checks JSON, skill and plugin metadata, source attribution, the 1 MB file limit, ASCII scripts, secrets, and personal data. Fake scanner inputs under `tests/` and local `.superpowers/` notes are excluded only from the validator's secret and personal-data checks; other checks still apply. Gitleaks uses [.gitleaks.toml](.gitleaks.toml) to allowlist test fixtures.
+Repository validation checks JSON, skill and plugin metadata, core source attribution, locked versions for core and profile sources, the 1 MB file limit, ASCII scripts, secrets, and personal data. Fake scanner inputs under `tests/` and local `.superpowers/` notes are excluded only from the validator's secret and personal-data checks; other checks still apply. Gitleaks uses [.gitleaks.toml](.gitleaks.toml) to allowlist test fixtures.
 
 ## Review and delivery
 

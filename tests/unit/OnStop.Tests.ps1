@@ -6,13 +6,13 @@ BeforeAll {
         if ($State) {
             $dir = Join-Path $env:AGYCFG_HOME '.agy-config-state'
             New-Item -ItemType Directory -Force -Path $dir | Out-Null
-            ($State | ConvertTo-Json) | Set-Content -Path (Join-Path $dir 'machine.json') -Encoding ASCII
+            [IO.File]::WriteAllText((Join-Path $dir 'machine.json'), ($State | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
         }
     }
     function New-FakeRepo {
         $r = Join-Path $TestDrive ('repo with space ' + [guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Force -Path (Join-Path $r 'scripts') | Out-Null
-        Set-Content -Path (Join-Path $r 'scripts\sync.ps1') -Value 'exit 0'
+        [IO.File]::WriteAllText((Join-Path $r 'scripts\sync.ps1'), 'exit 0', (New-Object Text.UTF8Encoding $false))
         $r
     }
 }
@@ -55,6 +55,18 @@ Describe 'on-stop hook' {
         ($out -join '').Trim() | Should -Be '{}'
         Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter {
             $FilePath -eq 'powershell' -and ($ArgumentList -join ' ') -match [regex]::Escape('"' + (Join-Path $repo 'scripts\sync.ps1') + '"')
+        }
+    }
+    It 'starts sync with the exact non-ASCII repoPath from UTF-8 without BOM state' {
+        $repo = Join-Path $TestDrive ('repo ' + [char]0x1EAD)
+        New-Item -ItemType Directory -Force -Path (Join-Path $repo 'scripts') | Out-Null
+        [IO.File]::WriteAllText((Join-Path $repo 'scripts\sync.ps1'), 'exit 0', (New-Object Text.UTF8Encoding $false))
+        Set-Machine @{ profile = 'p'; role = 'owner'; repoPath = $repo }
+        Mock Start-Process { }
+        ((& $script:hook) -join '').Trim() | Should -Be '{}'
+        Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter {
+            $FilePath -eq 'powershell' -and $WindowStyle -eq 'Hidden' -and
+                ($ArgumentList -join ' ') -eq ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $repo 'scripts\sync.ps1') + '"')
         }
     }
     It 'does nothing for follower' {

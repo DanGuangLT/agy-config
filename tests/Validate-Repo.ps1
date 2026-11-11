@@ -78,8 +78,14 @@ try {
     $attribution = if (Test-Path -LiteralPath $attributionFile) { Read-TextFile $attributionFile } else { '' }
     foreach ($relative in @($jsonValues.Keys | Sort-Object)) {
         if ($relative -ne 'core/sources.json' -and $relative -notmatch '^profiles/[^/]+/sources\.json$') { continue }
+        $lockRelative = $relative -replace 'sources\.json$', 'sources.lock.json'
+        $locked = $jsonValues[$lockRelative]
         foreach ($source in @($jsonValues[$relative])) {
             if (-not $source) { continue }
+            if ($locked -isnot [hashtable] -or -not $locked.ContainsKey([string]$source.id)) {
+                $problems.Add($relative + ': missing locked version for ' + $source.id)
+            }
+            if ($relative -ne 'core/sources.json') { continue }
             $references = @()
             if ($source.repo) { $references += [string]$source.repo }
             if ($source.type -eq 'pip-tool' -and $source.package) { $references += [string]$source.package }

@@ -15,7 +15,7 @@ try {
     $h = if ($env:AGYCFG_HOME) { $env:AGYCFG_HOME } else { $HOME }
     $statePath = Join-Path $h '.agy-config-state\machine.json'
     if (Test-Path $statePath) {
-        $m = Get-Content -Raw -Path $statePath | ConvertFrom-Json
+        $m = [IO.File]::ReadAllText($statePath, [Text.Encoding]::UTF8) | ConvertFrom-Json
         if ($m.role -eq 'owner' -and $m.repoPath) {
             $sync = Join-Path $m.repoPath 'scripts\sync.ps1'
             if (Test-Path $sync) {

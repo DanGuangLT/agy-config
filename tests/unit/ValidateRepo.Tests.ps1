@@ -33,20 +33,61 @@ Describe 'Validate-Repo' {
         Write-JsonFile (Join-Path $script:fixture 'core\sources.json') @(@{
             id = 'sample'; type = 'github-skills'; repo = 'https://github.com/example/sample'; skills = @()
         })
+        Write-JsonFile (Join-Path $script:fixture 'core\sources.lock.json') @{ sample = 'tested' }
         $r = Invoke-RepoValidation $script:fixture
         $r.ExitCode | Should -Be 1
         $r.StdOut | Should -Match 'sources\.json:.*THIRD_PARTY\.md.*https://github.com/example/sample'
     }
 
-    It 'checks profile sources and pip packages in THIRD_PARTY' {
+    It 'allows profile sources missing from THIRD_PARTY' {
         Write-JsonFile (Join-Path $script:fixture 'profiles\sample\sources.json') @(@{
+            id = 'map'; type = 'github-skills'; repo = 'https://github.com/example/personal-map'; skills = @()
+        })
+        Write-JsonFile (Join-Path $script:fixture 'profiles\sample\sources.lock.json') @{ map = 'tested' }
+        $r = Invoke-RepoValidation $script:fixture
+        $r.ExitCode | Should -Be 0
+        $r.StdOut | Should -BeNullOrEmpty
+    }
+
+    It 'requires core pip packages in THIRD_PARTY' {
+        Write-JsonFile (Join-Path $script:fixture 'core\sources.json') @(@{
             id = 'map'; type = 'pip-tool'; package = 'sample-map-tool'
         })
+        Write-JsonFile (Join-Path $script:fixture 'core\sources.lock.json') @{ map = '1.0' }
         $r = Invoke-RepoValidation $script:fixture
         $r.ExitCode | Should -Be 1
-        $r.StdOut | Should -Match 'profiles/sample/sources\.json:.*THIRD_PARTY\.md.*sample-map-tool'
+        $r.StdOut | Should -Match 'core/sources\.json:.*THIRD_PARTY\.md.*sample-map-tool'
         Write-TextFile (Join-Path $script:fixture 'THIRD_PARTY.md') 'https://pypi.org/project/sample-map-tool/'
         (Invoke-RepoValidation $script:fixture).ExitCode | Should -Be 0
+    }
+
+    It 'requires a locked version for every core source with <LockState> lock' -TestCases @(
+        @{ LockState = 'missing' }, @{ LockState = 'incomplete' }
+    ) {
+        param($LockState)
+        Write-JsonFile (Join-Path $script:fixture 'core\sources.json') @(@{
+            id = 'sample'; type = 'github-skills'; repo = 'https://github.com/example/sample'
+        })
+        Write-TextFile (Join-Path $script:fixture 'THIRD_PARTY.md') 'https://github.com/example/sample'
+        if ($LockState -eq 'incomplete') { Write-JsonFile (Join-Path $script:fixture 'core\sources.lock.json') @{ other = 'tested' } }
+        $r = Invoke-RepoValidation $script:fixture
+        $r.ExitCode | Should -Be 1
+        $r.StdOut.Trim() | Should -Be 'core/sources.json: missing locked version for sample'
+    }
+
+    It 'requires each profile source in its own lock with <LockState> lock' -TestCases @(
+        @{ LockState = 'missing' }, @{ LockState = 'incomplete' }
+    ) {
+        param($LockState)
+        Write-JsonFile (Join-Path $script:fixture 'profiles\sample\sources.json') @(@{
+            id = 'sample'; type = 'github-skills'; repo = 'https://github.com/example/sample'
+        })
+        Write-JsonFile (Join-Path $script:fixture 'core\sources.lock.json') @{ sample = 'core-version' }
+        Write-TextFile (Join-Path $script:fixture 'THIRD_PARTY.md') 'https://github.com/example/sample'
+        if ($LockState -eq 'incomplete') { Write-JsonFile (Join-Path $script:fixture 'profiles\sample\sources.lock.json') @{ other = 'tested' } }
+        $r = Invoke-RepoValidation $script:fixture
+        $r.ExitCode | Should -Be 1
+        $r.StdOut.Trim() | Should -Be 'profiles/sample/sources.json: missing locked version for sample'
     }
 
     It 'flags non-ASCII ps1' {
@@ -134,6 +175,7 @@ Describe 'Validate-Repo' {
         Write-JsonFile (Join-Path $script:fixture 'core\sources.json') @(@{
             id = 'sample'; type = 'github-skills'; repo = 'https://github.com/example/sample'
         }, @{ id = 'map'; type = 'pip-tool'; package = 'sample-map-tool' })
+        Write-JsonFile (Join-Path $script:fixture 'core\sources.lock.json') @{ sample = 'tested'; map = '1.0' }
         Write-TextFile (Join-Path $script:fixture 'THIRD_PARTY.md') "https://github.com/example/sample`nhttps://pypi.org/project/sample-map-tool/"
         $r = Invoke-RepoValidation $script:fixture
         $r.ExitCode | Should -Be 0

@@ -67,6 +67,21 @@ Describe 'Find-Secrets' {
         @($hits | ForEach-Object { $_.Rule }) | Should -Contain 'user-path'
         ($hits | Where-Object { $_.Rule -eq 'github-token' }).Line | Should -Be 2
     }
+    It 'flags generic tokens' {
+        $f = Join-Path $script:dir 'generic.txt'
+        Write-TextFile $f ('api_key = "' + ('x' * 24) + '"')
+        @(Find-Secrets @($f) | ForEach-Object { $_.Rule }) | Should -Contain 'generic-token'
+    }
+    It 'flags bearer tokens' {
+        $f = Join-Path $script:dir 'bearer.txt'
+        Write-TextFile $f ('Authorization: Bearer ' + ('x' * 24))
+        @(Find-Secrets @($f) | ForEach-Object { $_.Rule }) | Should -Contain 'bearer-token'
+    }
+    It 'allows generic and bearer placeholders' {
+        $f = Join-Path $script:dir 'placeholders.txt'
+        Write-TextFile $f 'api_key="${API_KEY}" access-token=${ACCESS_TOKEN} secret=${SECRET} token=${TOKEN} Bearer ${TOKEN}'
+        @(Find-Secrets @($f)).Count | Should -Be 0
+    }
     It 'flags emails and private keys' {
         $f = Join-Path $script:dir 'b.md'
         Write-TextFile $f ("contact: someone@" + "gmail.com`n-----BEGIN RSA PRIVATE KEY-----")

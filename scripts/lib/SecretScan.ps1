@@ -6,6 +6,8 @@ $script:SecretRules = @(
     @{ Rule = 'google-key'; Pattern = 'AIza[0-9A-Za-z_\-]{30,}' },
     @{ Rule = 'private-key'; Pattern = '-----BEGIN [A-Z ]*PRIVATE KEY-----' },
     @{ Rule = 'password'; Pattern = '(?i)password\s*[=:]\s*(?!\$\{)\S+' },
+    @{ Rule = 'generic-token'; Pattern = '(?i)(api[_-]?key|access[_-]?token|secret|token)\s*[=:]\s*["'']?(?!\$\{)[A-Za-z0-9_\-\.]{12,}' },
+    @{ Rule = 'bearer-token'; Pattern = '(?i)bearer\s+(?!\$\{)[A-Za-z0-9_\-\.=]{12,}' },
     @{ Rule = 'email'; Pattern = '[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}' },
     @{ Rule = 'user-path'; Pattern = '(?i)[A-Z]:\\{1,2}Users\\{1,2}(?![<{%$])[^\\\s"''<>]+' }
 )
