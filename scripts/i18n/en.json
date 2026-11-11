@@ -1,5 +1,6 @@
 {
   "languageRule": "## Language\n\nAlways reply to the user in {0}: short, clear sentences. Keep file names, commands and technical terms as they are, with a short explanation when needed. Code, comments, commit messages and pull requests are written in English.",
+  "languageRuleAuto": "## Language\n\nReply in the same language the user writes in; if a message mixes languages, use the main one. Keep file names, commands and technical terms as they are, with a short explanation when needed. Code, comments, commit messages and pull requests are written in English.",
   "msgApplyFailed": "Some parts did not install. Read the newest log in {0}. The weekly maintenance retries when agy starts; you can also run install again.",
   "msgBackup": "Your previous agy configuration was backed up to: {0}",
   "msgBadProfileName": "'{0}' is not a valid profile name. Use lowercase letters, digits, '-' or '_'.",
@@ -15,7 +16,7 @@
   "msgUninstalled": "Removed the agy-self-config plugin (and any scheduled tasks from older versions). Installed skills were left in place.",
   "msgWarnTool": "Note: {0} was not found ({1}). Some features need it.",
   "promptConfirm": "Continue? (y/N)",
-  "promptLanguage": "Which language should agy reply in? (en, vi, ja, ... Press Enter for English)",
+  "promptLanguage": "Which language should agy reply in? Press Enter for auto (the language the user writes in), or type a code such as en, vi, ja",
   "promptProfile": "Profile name (existing: {0}). Type an existing name or a new one",
   "promptProjectMap": "Project map tool: press Enter for graphify, type the name of another skill you use, or type none",
   "promptUninstall": "Remove the agy-self-config plugin? (y/N)",

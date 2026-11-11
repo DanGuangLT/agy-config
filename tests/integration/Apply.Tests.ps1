@@ -73,7 +73,7 @@ Describe 'Invoke-Apply' {
         $text = Read-TextFile (Get-AgyPaths).GeminiMd
         $s = Split-GeminiMd $text
         $s.Core | Should -BeExactly ((Read-TextFile (Join-Path $repo 'core\GEMINI.core.md')).TrimEnd("`n"))
-        $s.Profile | Should -Match 'Always reply to the user in Vietnamese'
+        $s.Profile | Should -Match 'Reply in the same language the user writes in'
         $text | Should -Match 'Project map tool: graphify'
     }
     It 'keeps trustedWorkspaces and adds core permissions' {

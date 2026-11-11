@@ -24,7 +24,7 @@ This repository configures the Antigravity CLI (`agy`) on Windows. Contributions
 
 ## Development rules and checks
 
-- Windows PowerShell 5.1 only; keep every `.ps1` ASCII-only. User-facing script text is English only, in `scripts/i18n/en.json`. A profile's reply language is configurable; its rule is generated in English (for example, "Always reply to the user in Vietnamese"). Markdown may contain Vietnamese.
+- Windows PowerShell 5.1 only; keep every `.ps1` ASCII-only. User-facing script text is English only, in `scripts/i18n/en.json`. A profile's reply language defaults to `auto` (reply in the user's language) and can be pinned with a code such as `vi`; the rule is always generated in English. The whole repository is English-only, and `tests/Validate-Repo.ps1` rejects Vietnamese text.
 - Write text as UTF-8 without BOM through `Write-TextFile`; reuse the library helpers in `scripts/lib/`. Wrap external tools and network calls with `Invoke-External` and `Invoke-Http` so tests can mock them.
 - Write a failing Pester 5 test before changing script behavior, then make it pass. Tests need to cover the actual behavior.
 - Keep third-party content at its original source with a locked version. Do not vendor it into the repo.

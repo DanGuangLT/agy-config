@@ -57,7 +57,7 @@ function Invoke-Install {
     $creating = -not (Test-Path (Join-Path $profDir 'profile.json'))
     if ($creating) {
         if (-not $Language) {
-            $Language = 'en'
+            $Language = 'auto'
             if (-not $Yes) { $a = Read-Host -Prompt $t.promptLanguage; if ($a) { $Language = $a.Trim().ToLowerInvariant() } }
         }
         if (-not $ProjectMapTool) {

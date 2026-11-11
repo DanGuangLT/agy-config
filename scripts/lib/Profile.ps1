@@ -2,7 +2,7 @@
 
 function Get-ProfileDefaults {
     @{
-        language   = 'en'
+        language   = 'auto'
         sync       = @{ debounceMinutes = 10 }
         update     = @{ day = 'Sunday' }
         projectMap = @{ tool = 'graphify' }
@@ -62,7 +62,9 @@ function New-ProfileFromTemplate([string]$RepoRoot, [string]$Name, [string]$Lang
     $data.language = $Language
     $data.projectMap = @{ tool = $ProjectMapTool }
     Write-JsonFile $json $data
-    $rule = (Get-I18nText $RepoRoot 'en').languageRule -f (Get-LanguageName $Language)
+    $texts = Get-I18nText $RepoRoot 'en'
+    # 'auto' (the default) mirrors the user's language; a code such as 'vi' pins one language.
+    $rule = if (-not $Language -or $Language -eq 'auto') { $texts.languageRuleAuto } else { $texts.languageRule -f (Get-LanguageName $Language) }
     $gm = Join-Path $dst 'GEMINI.profile.md'
     Write-TextFile $gm (((Read-TextFile $gm) -replace '\{\{LANGUAGE_RULE\}\}', $rule.Replace('$', '$$')))
     return $dst

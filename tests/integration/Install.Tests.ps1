@@ -93,6 +93,11 @@ Describe 'Invoke-Install' {
         $p.language | Should -Be 'vi'
         $p.projectMap.tool | Should -Be 'graphify'
     }
+    It 'new profiles reply in the user''s language unless a language is given' {
+        $repo = New-InstallFixture
+        Invoke-Install -RepoRoot $repo -ProfileName autouser -Yes | Should -Be 0
+        (Get-Profile $repo 'autouser').language | Should -Be 'auto'
+    }
     It 'install is idempotent' {
         $repo = New-InstallFixture
         Invoke-Install -RepoRoot $repo -ProfileName again -Language en -ProjectMapTool graphify -Yes | Should -Be 0

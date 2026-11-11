@@ -27,8 +27,8 @@ Describe 'Get-Profile' {
     }
     It 'keeps values that are set' {
         $p = Get-Profile $script:repoRoot 'lianharman'
-        $p.language | Should -Be 'vi'
-        $p.GeminiProfileText | Should -Match 'Always reply to the user in Vietnamese'
+        $p.language | Should -Be 'auto'
+        $p.GeminiProfileText | Should -Match 'Reply in the same language the user writes in'
     }
 }
 
@@ -42,6 +42,20 @@ Describe 'New-ProfileFromTemplate' {
         $p.name | Should -Be 'an'
         $p.language | Should -Be 'vi'
         $p.projectMap.tool | Should -Be 'none'
+    }
+    It 'auto replies in the language the user writes in' {
+        $r = New-FakeRepo
+        $path = New-ProfileFromTemplate $r 'mirror' 'auto' 'graphify'
+        $text = Read-TextFile (Join-Path $path 'GEMINI.profile.md')
+        $text | Should -Match 'Reply in the same language the user writes in'
+        $text | Should -Not -Match 'Always reply to the user in'
+    }
+    It 'defaults to auto when the profile does not set a language' {
+        $r = New-FakeRepo
+        $dir = Join-Path $r 'profiles\nolang'
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        Write-TextFile (Join-Path $dir 'profile.json') '{"name":"nolang"}'
+        (Get-Profile $r 'nolang').language | Should -Be 'auto'
     }
     It 'names any language in English' {
         $r = New-FakeRepo

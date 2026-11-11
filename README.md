@@ -32,7 +32,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 
 Choose or create your own profile when asked. The installer asks for the reply language and project map tool, shows its planned actions, asks for confirmation, then backs up and applies the configuration. It registers no Windows scheduled tasks and removes the three tasks older versions created: `agy-config-apply`, `agy-config-sync`, and `agy-config-update`. It is safe to run again.
 
-Script prompts and messages are English only (`scripts/i18n/en.json`). Your profile's reply language remains configurable; its rule is generated in English, for example, "Always reply to the user in Vietnamese".
+Script prompts and messages are English only (`scripts/i18n/en.json`). By default agy replies in the same language you write in (profile language `auto`). To pin one language, set `language` in your `profile.json` to a code such as `vi` or `ja`; the rule is generated in English, for example "Always reply to the user in Vietnamese".
 
 Role is determined per machine by a dry-run push to `origin`, then stored locally. A machine with push access is an **owner**: it backs up configuration changes and runs weekly source updates. A machine without push access is a **follower**: it receives configuration and updates from `main` without publishing changes. A direct clone of the public upstream normally makes you a follower and gives you no automatic GitHub backup.
 
