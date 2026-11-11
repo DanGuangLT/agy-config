@@ -56,11 +56,13 @@ function ConvertTo-PlainObject($Value) {
 }
 
 function Read-JsonFile([string]$Path, $Default) {
+    # Objects come back as hashtables. A top-level JSON array is emitted item by item:
+    # wrap the call in @() when the file holds an array.
     if (-not (Test-Path $Path)) { return $Default }
     $text = Read-TextFile $Path
     if ([string]::IsNullOrWhiteSpace($text)) { return $Default }
-    $obj = ConvertFrom-Json $text
-    return , (ConvertTo-PlainObject $obj)
+    $value = ConvertTo-PlainObject (ConvertFrom-Json $text)
+    return $value
 }
 
 function ConvertTo-JsonString([string]$s) {

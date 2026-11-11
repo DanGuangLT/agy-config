@@ -51,6 +51,15 @@ Describe 'JSON IO' {
         , $j.a | Should -BeOfType [object[]]
         $j.a.Count | Should -Be 1
     }
+    It 'emits top-level arrays item by item' {
+        $p = Join-Path $TestDrive 'list.json'
+        Write-TextFile $p '[{"id":"a"},{"id":"b"}]'
+        $items = @(Read-JsonFile $p @())
+        $items.Count | Should -Be 2
+        $items[1].id | Should -Be 'b'
+        Write-TextFile $p '[{"id":"only"}]'
+        @(Read-JsonFile $p @())[0].id | Should -Be 'only'
+    }
     It 'Write-JsonFile round-trips non-ASCII' {
         $p = Join-Path $TestDrive 'vi.json'
         Write-JsonFile $p @{ rule = $script:vi; list = @('a') }
