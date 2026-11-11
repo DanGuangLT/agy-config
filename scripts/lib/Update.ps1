@@ -26,7 +26,11 @@ function Invoke-Update {
         foreach ($s in $sources) {
             $old = [string]$lock[$s.id]
             try { $latest = [string](Get-LatestVersion $s) }
-            catch { $rows += , @($s.id, $old, '?', 'check failed'); continue }
+            catch {
+                $rows += , @($s.id, $old, '?', 'check failed')
+                & $log "check failed $($s.id): $($_.Exception.Message)" 'WARN'
+                continue
+            }
             if ($latest -eq $old) { continue }
             $r = Install-Source $s $latest
             $t = if ($r.Ok) { Test-Source $s } else { @{ Ok = $false; Error = $r.Error } }
@@ -38,7 +42,8 @@ function Invoke-Update {
             # Roll back this source only.
             if ($s.type -eq 'marketplace') { Restore-MarketplaceSnapshot $s | Out-Null }
             elseif ($old) { Install-Source $s $old | Out-Null }
-            $rows += , @($s.id, $old, $latest, ('rolled back: ' + $t.Error))
+            $reason = if ($r.Ok) { 'rolled back' } else { 'install failed' }
+            $rows += , @($s.id, $old, $latest, $reason)
             & $log "rolled back $($s.id): $($t.Error)" 'WARN'
         }
         if ($newVersions.Count -eq 0) {
@@ -51,12 +56,19 @@ function Invoke-Update {
         $merged = @{}
         if ($pending) { foreach ($k in $pending.versions.Keys) { $merged[$k] = $pending.versions[$k] } }
         foreach ($k in $newVersions.Keys) { $merged[$k] = $newVersions[$k] }
+        $baseLock = Get-EffectiveLock $RepoRoot $prof $null
+        foreach ($k in @($merged.Keys | Sort-Object)) {
+            if (-not $newVersions.ContainsKey($k)) { $rows += , @($k, [string]$baseLock[$k], [string]$merged[$k], 'carried over') }
+        }
         Set-PendingLock $merged
         $applied = Get-AppliedState
         foreach ($k in $newVersions.Keys) { $applied.sources[$k] = $newVersions[$k] }
         Set-AppliedState $applied
 
-        $table = @('| source | old | new | result |', '|---|---|---|---|') + @($rows | ForEach-Object { '| ' + ($_ -join ' | ') + ' |' })
+        $table = @('| source | old | new | result |', '|---|---|---|') + @($rows | ForEach-Object {
+            $cells = @($_ | ForEach-Object { ([string]$_).Replace('|', '\|') -replace '\r\n|\r|\n', '<br>' })
+            '| ' + ($cells -join ' | ') + ' |'
+        })
         foreach ($line in $table) { & $log $line }
         if ($NoPush) { return 0 }
 
@@ -74,13 +86,17 @@ function Invoke-Update {
             $profLockPath = Join-Path $wt ('profiles\' + $prof.name + '\sources.lock.json')
             $coreLock = Read-JsonFile $coreLockPath @{}
             $profLock = Read-JsonFile $profLockPath @{}
-            foreach ($k in $newVersions.Keys) {
-                if ($profIds -contains $k) { $profLock[$k] = $newVersions[$k] } else { $coreLock[$k] = $newVersions[$k] }
+            foreach ($k in $merged.Keys) {
+                if ($profIds -contains $k) { $profLock[$k] = $merged[$k] } else { $coreLock[$k] = $merged[$k] }
             }
             Write-JsonFile $coreLockPath $coreLock
             if (Test-Path (Split-Path -Parent $profLockPath)) { Write-JsonFile $profLockPath $profLock }
             $msgFile = Join-Path (Get-AgyPaths).StateDir 'update-commit-msg.txt'
             Write-TextFile $msgFile (("chore(sources): weekly update {0}`n`n" -f (Get-Date -Format 'yyyy-MM-dd')) + ($table -join "`n") + "`n")
+            if (@(Find-Secrets @($msgFile)).Count -gt 0) {
+                & $log 'commit message contains possible secrets or personal data; publication blocked' 'ERROR'
+                return 2
+            }
             Invoke-Git $wt @('add', '-A') | Out-Null
             Invoke-Git $wt @('commit', '--quiet', '-F', $msgFile) | Out-Null
             Invoke-Git $wt @('push', '--quiet', '--force', 'origin', 'update/sources') | Out-Null

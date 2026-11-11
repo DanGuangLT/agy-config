@@ -102,3 +102,97 @@ Describe 'Invoke-Update' {
         $log | Should -Match 'update/sources'
     }
 }
+
+Describe 'Update publication regressions' {
+    BeforeEach {
+        $script:fixture = Join-Path $TestDrive ('publication-' + [guid]::NewGuid().ToString('N'))
+        $env:AGYCFG_HOME = Join-Path $script:fixture 'home'
+        $script:repo = Join-Path $script:fixture 'repo'
+        Write-JsonFile (Join-Path $script:repo 'profiles\p\profile.json') @{ language = 'en' }
+        Write-JsonFile (Join-Path $script:repo 'profiles\p\sources.json') @()
+        Write-JsonFile (Join-Path $script:repo 'profiles\p\sources.lock.json') @{}
+        Write-JsonFile (Join-Path $script:repo 'core\sources.lock.json') @{ superpowers = 'old-sp'; design = 'old-design' }
+        Set-MachineState @{ profile = 'p'; role = 'owner'; repoPath = $script:repo }
+        $script:pushedCore = $null
+        $script:pushedProfile = $null
+        $script:commitBody = $null
+        Mock Resolve-Tool { 'git.exe' }
+        Mock Get-SourceList { @($script:sp, $script:design) }
+        Mock Get-LatestVersion { 'new-' + $Source.id }
+        Mock Install-Source { @{ Ok = $true; Error = '' } }
+        Mock Test-Source { @{ Ok = $true; Error = '' } }
+        # Only the git process boundary is faked: locks, messages, state and logs use real files.
+        Mock Invoke-External { @{ ExitCode = 0; StdOut = ''; StdErr = '' } }
+        Mock Invoke-Git {
+            if ($GitArgs[0] -eq 'worktree' -and $GitArgs[1] -eq 'add') {
+                $wt = $GitArgs[-2]
+                New-Item -ItemType Directory -Force -Path $wt | Out-Null
+                foreach ($d in 'core', 'profiles') { Copy-Item -Recurse (Join-Path $script:repo $d) (Join-Path $wt $d) }
+            } elseif ($GitArgs[0] -eq 'commit') {
+                $script:commitBody = Read-TextFile $GitArgs[-1]
+            } elseif ($GitArgs[0] -eq 'push') {
+                $script:pushedCore = Read-JsonFile (Join-Path $Dir 'core\sources.lock.json') @{}
+                $script:pushedProfile = Read-JsonFile (Join-Path $Dir 'profiles\p\sources.lock.json') @{}
+            } elseif ($GitArgs[0] -eq 'remote') { return 'https://github.com/example/config.git' }
+            return ''
+        }
+    }
+
+    It 'carries previous pending <Scope> versions into the pushed lock and table' -TestCases @(
+        @{ Scope = 'core' }, @{ Scope = 'profile' }
+    ) {
+        param($Scope)
+        if ($Scope -eq 'profile') {
+            Write-JsonFile (Join-Path $script:repo 'profiles\p\sources.json') @($script:design)
+            Write-JsonFile (Join-Path $script:repo 'profiles\p\sources.lock.json') @{ design = 'old-design' }
+        }
+        Write-JsonFile (Get-StateFile 'pending.lock.json') @{ createdAt = (Get-Date).AddDays(-7).ToString('o'); versions = @{ design = 'prev-design' } }
+        Mock Get-LatestVersion { if ($Source.id -eq 'design') { 'prev-design' } else { 'new-superpowers' } }
+        Invoke-Update -RepoRoot $script:repo | Should -Be 0
+        $script:pushedCore.superpowers | Should -Be 'new-superpowers'
+        if ($Scope -eq 'core') { $script:pushedCore.design | Should -Be 'prev-design' }
+        else { $script:pushedProfile.design | Should -Be 'prev-design' }
+        $script:commitBody | Should -Match '\| design \| old-design \| prev-design \| carried over \|'
+    }
+
+    It 'keeps <Failure> errors local and publishes only <Reason>' -TestCases @(
+        @{ Failure = 'check'; Reason = 'check failed' },
+        @{ Failure = 'install'; Reason = 'install failed' },
+        @{ Failure = 'validate'; Reason = 'rolled back' }
+    ) {
+        param($Failure, $Reason)
+        $script:privateError = 'failed at C:\Users\someone\x | details' + "`nmore detail"
+        if ($Failure -eq 'check') {
+            Mock Get-LatestVersion { throw $script:privateError } -ParameterFilter { $Source.id -eq 'design' }
+        } elseif ($Failure -eq 'install') {
+            Mock Install-Source { @{ Ok = $false; Error = $script:privateError } } -ParameterFilter { $Source.id -eq 'design' }
+        } else {
+            Mock Test-Source { @{ Ok = $false; Error = $script:privateError } } -ParameterFilter { $Source.id -eq 'design' }
+        }
+        Invoke-Update -RepoRoot $script:repo | Should -Be 0
+        $script:pushedCore.superpowers | Should -Be 'new-superpowers'
+        $script:commitBody | Should -Not -Match 'C:\\Users\\someone|details|more detail'
+        $script:commitBody | Should -Match ('\| design \| old-design \| .* \| ' + $Reason + ' \|')
+        $log = Read-TextFile (Join-Path (Get-AgyPaths).LogDir ('update-' + (Get-Date -Format 'yyyyMMdd') + '.log'))
+        $log | Should -Match ([regex]::Escape($script:privateError))
+    }
+
+    It 'blocks commit and push when the commit message scan finds a secret' {
+        Mock Find-Secrets { @{ Path = $Paths[0]; Line = 1; Rule = 'generic-token' } }
+        Invoke-Update -RepoRoot $script:repo | Should -Be 2
+        Should -Invoke Find-Secrets -Times 1 -Exactly -ParameterFilter { $Paths[0] -eq (Join-Path (Get-AgyPaths).StateDir 'update-commit-msg.txt') }
+        Should -Invoke Invoke-Git -Times 0 -Exactly -ParameterFilter { $GitArgs[0] -in @('commit', 'push') }
+        $script:pushedCore | Should -BeNullOrEmpty
+        $log = Read-TextFile (Join-Path (Get-AgyPaths).LogDir ('update-' + (Get-Date -Format 'yyyyMMdd') + '.log'))
+        $log | Should -Match '\[ERROR\]'
+        Test-Path (Get-StateFile 'update.lock') | Should -BeFalse
+    }
+
+    It 'escapes pipes and newlines in published table cells' {
+        Mock Get-SourceList { @(@{ id = "super|powers`nid"; type = 'git-plugin' }) }
+        Write-JsonFile (Join-Path $script:repo 'core\sources.lock.json') @{ "super|powers`nid" = "old|sp`nline" }
+        Mock Get-LatestVersion { "new|sp`r`ncandidate" }
+        Invoke-Update -RepoRoot $script:repo | Should -Be 0
+        $script:commitBody | Should -Match ([regex]::Escape('| super\|powers<br>id | old\|sp<br>line | new\|sp<br>candidate | updated |'))
+    }
+}

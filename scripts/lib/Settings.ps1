@@ -37,7 +37,23 @@ function ConvertTo-McpVariableName([string]$Server, [string]$Key) {
 
 function Protect-McpConfig($Config) {
     $copy = ConvertTo-PlainObject $Config
-    $vars = @()
+    $vars = New-Object System.Collections.ArrayList
+    $protectValue = {
+        param([string]$Value, [string]$Key)
+        if ($Value -match '^\$\{[A-Za-z0-9_]+\}$') { return $Value }
+        $var = ConvertTo-McpVariableName $name $Key
+        if (-not $vars.Contains($var)) { [void]$vars.Add($var) }
+        return '${' + $var + '}'
+    }
+    $protectUrl = {
+        param([string]$Value)
+        [regex]::Replace($Value, '([?&])([^?&#=]+)=([^&#]*)', {
+            param($m)
+            $key = [Uri]::UnescapeDataString($m.Groups[2].Value)
+            if ($key -notmatch '(?i)(key|token|secret|password|auth)') { return $m.Value }
+            return $m.Groups[1].Value + $m.Groups[2].Value + '=' + (& $protectValue $m.Groups[3].Value $key)
+        })
+    }
     $servers = $copy.mcpServers
     if ($servers -is [hashtable]) {
         foreach ($name in @($servers.Keys)) {
@@ -47,20 +63,55 @@ function Protect-McpConfig($Config) {
                     foreach ($k in @($srv[$section].Keys)) {
                         $v = [string]$srv[$section][$k]
                         if ($v -match '^\$\{[A-Za-z0-9_]+\}$') { continue }
-                        $var = ConvertTo-McpVariableName $name $k
-                        $srv[$section][$k] = '${' + $var + '}'
-                        $vars += $var
+                        $srv[$section][$k] = & $protectValue $v $k
                     }
                 }
             }
+            foreach ($key in 'url', 'serverUrl') {
+                if ($srv[$key] -is [string]) { $srv[$key] = & $protectUrl $srv[$key] }
+            }
+            if ($srv.ContainsKey('args')) {
+                $flagPattern = '(?i)^(--(?:token|access-token|api-key|apikey|key|secret|password)|-k)(?:=(.*))?$'
+                $nextKey = $null
+                $srv.args = @(foreach ($arg in @($srv.args)) {
+                    if ($nextKey) {
+                        & $protectValue $arg $nextKey
+                        $nextKey = $null
+                    } elseif ($arg -match $flagPattern) {
+                        $flag = $Matches[1]
+                        if ($Matches.ContainsKey(2)) {
+                            $flag + '=' + (& $protectValue $Matches[2] $flag.TrimStart('-'))
+                        } else { $nextKey = $flag.TrimStart('-'); $arg }
+                    } else {
+                        $value = [regex]::Replace($arg, '(?i)(Authorization|Bearer)(:\s*|\s+)(Bearer\s+)?(\$\{[A-Za-z0-9_]+\}|[^\s"'';,]+)', {
+                            param($m)
+                            $m.Groups[1].Value + $m.Groups[2].Value + $m.Groups[3].Value + (& $protectValue $m.Groups[4].Value $m.Groups[1].Value)
+                        })
+                        if ($value -match '^[A-Za-z][A-Za-z0-9+.-]*://') { $value = & $protectUrl $value }
+                        $value
+                    }
+                })
+            }
         }
     }
-    return @{ Config = $copy; Variables = $vars }
+    return @{ Config = $copy; Variables = @($vars.ToArray()) }
 }
 
 function Expand-McpConfig($Config) {
     $copy = ConvertTo-PlainObject $Config
     $missing = New-Object System.Collections.ArrayList
+    $expand = {
+        param([string]$Value)
+        [regex]::Replace($Value, '\$\{([A-Za-z0-9_]+)\}', {
+            param($m)
+            $val = [Environment]::GetEnvironmentVariable($m.Groups[1].Value)
+            if ($null -eq $val) {
+                if (-not $missing.Contains($m.Groups[1].Value)) { [void]$missing.Add($m.Groups[1].Value) }
+                return $m.Value
+            }
+            return $val
+        })
+    }
     $servers = $copy.mcpServers
     if ($servers -is [hashtable]) {
         foreach ($name in @($servers.Keys)) {
@@ -68,19 +119,14 @@ function Expand-McpConfig($Config) {
             foreach ($section in 'env', 'headers') {
                 if ($srv[$section] -is [hashtable]) {
                     foreach ($k in @($srv[$section].Keys)) {
-                        $v = [string]$srv[$section][$k]
-                        $srv[$section][$k] = [regex]::Replace($v, '\$\{([A-Za-z0-9_]+)\}', {
-                                param($m)
-                                $val = [Environment]::GetEnvironmentVariable($m.Groups[1].Value)
-                                if ($null -eq $val) {
-                                    if (-not $missing.Contains($m.Groups[1].Value)) { [void]$missing.Add($m.Groups[1].Value) }
-                                    return $m.Value
-                                }
-                                return $val
-                            })
+                        $srv[$section][$k] = & $expand ([string]$srv[$section][$k])
                     }
                 }
             }
+            foreach ($key in 'url', 'serverUrl') {
+                if ($srv[$key] -is [string]) { $srv[$key] = & $expand $srv[$key] }
+            }
+            if ($srv.ContainsKey('args')) { $srv.args = @($srv.args | ForEach-Object { & $expand ([string]$_) }) }
         }
     }
     return @{ Config = $copy; Missing = @($missing.ToArray()) }

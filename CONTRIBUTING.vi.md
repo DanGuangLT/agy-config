@@ -20,7 +20,7 @@ Repo này cấu hình Antigravity CLI (`agy`) trên Windows. Gửi đóng góp b
    }
    ```
 
-4. Thêm một dòng vào [THIRD_PARTY.md](THIRD_PARTY.md) ghi nguồn, giấy phép và URL `repo` chính xác. Với `pip-tool`, ghi tên `package` và link PyPI thay thế. Mục marketplace ghi tên plugin và chợ. Không chép skill nguồn gốc vào repo này.
+4. Với mỗi nguồn core mới, thêm cả một dòng vào [THIRD_PARTY.md](THIRD_PARTY.md) và phiên bản khóa theo `id` trong [core/sources.lock.json](core/sources.lock.json). Dòng ghi công gồm nguồn, giấy phép và URL `repo` chính xác. Với `pip-tool`, ghi tên `package` và link PyPI thay thế. Mục marketplace ghi tên plugin và chợ. Nguồn riêng của profile cần phiên bản trong `sources.lock.json` của profile đó; URL repo được ghi trong `sources.json` và không cần dòng trong THIRD_PARTY. Không chép skill nguồn gốc vào repo này.
 5. Trên máy owner đã cấu hình, chạy `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\update.ps1 -NoPush` để cài và kiểm tra các phiên bản nguồn ứng viên tại máy. Lệnh này thay đổi nguồn đã cài và trạng thái chờ cục bộ; không đẩy nhánh hay mở PR. Xem log cập nhật và ghi commit hoặc phiên bản gói đã thử vào `sources.lock.json` tương ứng cho PR. Nếu không thể cài thử tại máy, để CI kiểm tra cấu trúc repo và nêu hạn chế đó trong PR; CI không thay thế kiểm tra cài nguồn thực tế.
 6. Thêm test cho thay đổi hành vi, chạy các kiểm tra dưới đây và mở PR bằng mẫu có sẵn. Nêu thay đổi, lý do và kết quả kiểm tra.
 
@@ -46,7 +46,7 @@ if ($issues.Count -gt 0) { throw 'PSScriptAnalyzer reported errors.' }
 
 Trình chạy test cần Pester từ 5.5 trở lên và cài cho người dùng hiện tại nếu thiếu. Để chỉ chạy test validator, thêm `-Path tests/unit/ValidateRepo.Tests.ps1` vào lệnh test. Chạy lại toàn bộ bộ test trước khi gửi.
 
-Kiểm tra repo gồm JSON, metadata skill và plugin, ghi công nguồn, giới hạn file 1 MB, script ASCII, bí mật và dữ liệu cá nhân. Dữ liệu giả cho scanner trong `tests/` và ghi chú cục bộ `.superpowers/` chỉ được bỏ qua ở bước quét bí mật và dữ liệu cá nhân của validator; các kiểm tra khác vẫn áp dụng. Gitleaks dùng [.gitleaks.toml](.gitleaks.toml) để cho phép dữ liệu test.
+Kiểm tra repo gồm JSON, metadata skill và plugin, ghi công nguồn core, phiên bản khóa cho nguồn core và profile, giới hạn file 1 MB, script ASCII, bí mật và dữ liệu cá nhân. Dữ liệu giả cho scanner trong `tests/` và ghi chú cục bộ `.superpowers/` chỉ được bỏ qua ở bước quét bí mật và dữ liệu cá nhân của validator; các kiểm tra khác vẫn áp dụng. Gitleaks dùng [.gitleaks.toml](.gitleaks.toml) để cho phép dữ liệu test.
 
 ## Duyệt và bàn giao
 

@@ -48,6 +48,56 @@ Describe 'Get-MachinePermissions / Remove-Permissions' {
 }
 
 Describe 'MCP' {
+    It 'protects token flag <Flag> in separate and equals args' -TestCases @(
+        @{ Flag = '--token'; Name = 'TOKEN' }, @{ Flag = '--ACCESS-TOKEN'; Name = 'ACCESS_TOKEN' },
+        @{ Flag = '--api-key'; Name = 'API_KEY' }, @{ Flag = '--apikey'; Name = 'APIKEY' },
+        @{ Flag = '--key'; Name = 'KEY' }, @{ Flag = '--secret'; Name = 'SECRET' },
+        @{ Flag = '--password'; Name = 'PASSWORD' }, @{ Flag = '-K'; Name = 'K' }
+    ) {
+        param($Flag, $Name)
+        $secret = 's' + ('a' * 24)
+        $cfg = @{ mcpServers = @{ 'my-api' = @{ args = @($Flag, $secret, ($Flag + '=' + $secret), '--port', '8080') } } }
+        $r = Protect-McpConfig $cfg
+        $placeholder = '${MY_API_' + $Name + '}'
+        $r.Config.mcpServers['my-api'].args | Should -Be @($Flag, $placeholder, ($Flag + '=' + $placeholder), '--port', '8080')
+        $r.Variables | Should -Contain ('MY_API_' + $Name)
+        $cfg.mcpServers['my-api'].args[1] | Should -Be $secret
+    }
+    It 'protects bearer and authorization values embedded in args' {
+        $secret = 's' + ('b' * 24)
+        $cfg = @{ mcpServers = @{ 'my-api' = @{ args = @(('header=Bearer ' + $secret), ('Authorization: ' + $secret), ('Authorization: Bearer ' + $secret)) } } }
+        $r = Protect-McpConfig $cfg
+        $r.Config.mcpServers['my-api'].args | Should -Be @('header=Bearer ${MY_API_BEARER}', 'Authorization: ${MY_API_AUTHORIZATION}', 'Authorization: Bearer ${MY_API_AUTHORIZATION}')
+        $r.Variables | Should -Contain 'MY_API_BEARER'
+        $r.Variables | Should -Contain 'MY_API_AUTHORIZATION'
+    }
+    It 'protects secret query values in urls serverUrls and url args' {
+        $secret = 's' + ('c' * 24)
+        $url = 'https://example.com/mcp?api-key=' + $secret + '&access_token=' + $secret + '&client_secret=' + $secret + '&password=' + $secret + '&auth=' + $secret + '&page=2#section'
+        $safe = 'https://example.com/mcp?api-key=${MY_API_API_KEY}&access_token=${MY_API_ACCESS_TOKEN}&client_secret=${MY_API_CLIENT_SECRET}&password=${MY_API_PASSWORD}&auth=${MY_API_AUTH}&page=2#section'
+        $r = Protect-McpConfig @{ mcpServers = @{ 'my-api' = @{ url = $url; serverUrl = $url; args = @($url) } } }
+        $r.Config.mcpServers['my-api'].url | Should -Be $safe
+        $r.Config.mcpServers['my-api'].serverUrl | Should -Be $safe
+        $r.Config.mcpServers['my-api'].args | Should -Be @($safe)
+        @($r.Variables | Sort-Object -Unique) | Should -Be @('MY_API_ACCESS_TOKEN', 'MY_API_API_KEY', 'MY_API_AUTH', 'MY_API_CLIENT_SECRET', 'MY_API_PASSWORD')
+        $again = Protect-McpConfig $r.Config
+        $again.Config.mcpServers['my-api'].url | Should -Be $safe
+        @($again.Variables).Count | Should -Be 0
+    }
+    It 'expands placeholders inside args urls and serverUrls and reports missing' {
+        $env:AGYCFG_TEST_TOKEN = 's' + ('d' * 24)
+        try {
+            $r = Expand-McpConfig @{ mcpServers = @{ api = @{
+                args = @('--token=${AGYCFG_TEST_TOKEN}', 'Bearer ${AGYCFG_TEST_TOKEN}', '${AGYCFG_NOT_SET_XYZ}')
+                url = 'https://example.com/?key=${AGYCFG_TEST_TOKEN}'
+                serverUrl = 'https://example.com/?auth=${AGYCFG_NOT_SET_XYZ}'
+            } } }
+            $r.Config.mcpServers.api.args | Should -Be @(('--token=' + $env:AGYCFG_TEST_TOKEN), ('Bearer ' + $env:AGYCFG_TEST_TOKEN), '${AGYCFG_NOT_SET_XYZ}')
+            $r.Config.mcpServers.api.url | Should -Be ('https://example.com/?key=' + $env:AGYCFG_TEST_TOKEN)
+            $r.Config.mcpServers.api.serverUrl | Should -Be 'https://example.com/?auth=${AGYCFG_NOT_SET_XYZ}'
+            $r.Missing | Should -Be @('AGYCFG_NOT_SET_XYZ')
+        } finally { Remove-Item Env:\AGYCFG_TEST_TOKEN -ErrorAction SilentlyContinue }
+    }
     It 'protects env secrets' {
         $cfg = @{ mcpServers = @{ gh = @{ command = 'npx'; env = @{ GITHUB_TOKEN = 'ghp_x' } } } }
         $r = Protect-McpConfig $cfg
