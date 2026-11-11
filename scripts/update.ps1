@@ -1,9 +1,11 @@
 # Weekly: move third-party sources to their newest versions (owner machines), push update/sources for review.
 [CmdletBinding()]
 param(
-    [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$RepoRoot,
     [switch]$NoPush
 )
+# $PSScriptRoot is empty inside param() on Windows PowerShell 5.1, so resolve the default here.
+if (-not $RepoRoot) { $RepoRoot = Split-Path -Parent $PSScriptRoot }
 . (Join-Path $PSScriptRoot 'lib\All.ps1')
 try {
     $code = Invoke-Update -RepoRoot $RepoRoot -NoPush:$NoPush
