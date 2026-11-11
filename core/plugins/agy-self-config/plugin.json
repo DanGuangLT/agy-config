@@ -1,0 +1,7 @@
+{
+  "description": "Keeps this agy setup in sync with its config repo and lets agy maintain it for you.",
+  "displayName": "agy self-config",
+  "license": "MIT",
+  "name": "agy-self-config",
+  "version": "1.0.0"
+}
