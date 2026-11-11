@@ -1,120 +1,120 @@
-# Thiết kế: Bộ cấu hình agy dùng chung, tự sao lưu và tự cập nhật
+# Design: Shared agy configuration with automatic backups and updates
 
-Ngày: 2026-11-11 · Repo: `DanGuangLT/Pre-configured-skills-for-the-antigravity-agent` (công khai)
+Date: 2026-11-11 - Repo: `DanGuangLT/Pre-configured-skills-for-the-antigravity-agent` (public)
 
-## 1. Mục đích và lý do
+## 1. Purpose and motivation
 
-Người dùng (chủ repo) đã mất công cấu hình Antigravity CLI (`agy`): quy tắc làm việc, quyền lệnh, skill, plugin. Họ muốn:
+The user (the repo owner) has spent time configuring Antigravity CLI (`agy`): working rules, command permissions, skills, and plugins. They want:
 
-- **Không bao giờ phải setup lại từ đầu**: đổi máy thì một lệnh là máy mới giống hệt máy cũ.
-- **Không mất bản sao lưu**: mọi thay đổi trên máy tự được đẩy lên repo.
-- **Theo kịp công nghệ**: AI thay đổi rất nhanh, nên skill/plugin phải tự cập nhật lên bản mới, nhưng vẫn quay lại được bản cũ khi bản mới hỏng.
-- **Tự lập**: sau khi xây xong, mọi việc bảo trì do chính `agy` làm theo lời người dùng; không cần Claude Code hay ai khác.
-- **Chia sẻ**: repo công khai để người Việt và người dùng quốc tế đều cài được, và đóng góp qua quy trình PR.
+- **Never set up everything from scratch again**: when moving to another machine, one command makes the new machine match the old one.
+- **Never lose backups**: every change on the machine is automatically pushed to the repo.
+- **Keep up with technology**: AI changes quickly, so skills/plugins must update automatically to new versions, with a way to return to an older version if an update breaks.
+- **Self-sufficiency**: once built, `agy` itself handles all maintenance at the user's request; Claude Code or anyone else is not needed.
+- **Sharing**: the repo is public so both Vietnamese and international users can install it and contribute through PRs.
 
-## 2. Mục tiêu, không làm, điều tối kỵ
+## 2. Goals, non-goals, and unacceptable outcomes
 
-**Mục tiêu**
+**Goals**
 
-1. Cài mới trên một máy chỉ có `agy`: một lệnh duy nhất, xong là agy có đủ quy tắc, quyền, skill, plugin và cơ chế tự động.
-2. Máy của chủ repo tự đồng bộ máy → repo trong đợt bảo trì hằng tuần khi khởi động agy; thay đổi qua skill `agy-self-config` được sao lưu ngay sau mỗi thay đổi.
-3. Máy owner tự cập nhật skill/plugin từ nguồn gốc mỗi tuần, có khóa phiên bản để quay lui. Mọi máy tự nhận cập nhật repo → máy, chỉ từ nhánh `main`.
-4. agy có một skill riêng để tự bảo trì cấu hình này theo lời người dùng.
-5. README hướng dẫn người vừa tải agy về, bằng tiếng Anh (`README.md`) và tiếng Việt (`README.vi.md`).
+1. Install on a new machine that only has `agy`: a single command gives agy all the rules, permissions, skills, plugins, and automation.
+2. The owner's machine automatically syncs machine -> repo during weekly maintenance when agy starts; changes made through the `agy-self-config` skill are backed up immediately after each change.
+3. The owner's machine automatically updates skills/plugins from their original sources every week, with locked versions for rollback. Every machine automatically receives repo -> machine updates, only from `main`.
+4. agy has a dedicated skill to maintain this configuration at the user's request.
+5. The README guides users who have just downloaded agy, in English (`README.md`) and Vietnamese (`README.vi.md`).
 
-**Không làm (lúc này)**
+**Non-goals (for now)**
 
-- Ứng dụng Antigravity bản desktop/IDE: chỉ lo agy CLI.
-- macOS/Linux: thiết kế để người đóng góp thêm sau; bản đầu chỉ Windows.
-- Đồng bộ cấu hình Claude Code.
+- The Antigravity desktop/IDE application: only agy CLI is in scope.
+- macOS/Linux: leave room for contributors to add support later; the first version is Windows only.
+- Syncing Claude Code configuration.
 
-**Điều tối kỵ** (xảy ra là thất bại dù mọi thứ "chạy được")
+**Unacceptable outcomes** (any of these means failure even if everything "works")
 
-- Bí mật (token, mật khẩu, khóa API, email cá nhân) lọt lên repo công khai.
-- Lịch sử hội thoại, log, cache của agy lọt lên repo.
-- Code chưa được chủ repo duyệt tự chạy trên máy người dùng.
-- Một bản cập nhật làm hỏng agy mà không quay lại được.
-- Ghi đè mất thiết lập riêng của người dùng trong `settings.json`.
+- Secrets (tokens, passwords, API keys, personal email addresses) reach the public repo.
+- agy conversation history, logs, or caches reach the repo.
+- Code that the owner has not approved runs automatically on users' machines.
+- An update breaks agy without a way to roll back.
+- A user's personal settings in `settings.json` are overwritten and lost.
 
-## 3. Bản đồ cấu hình agy (đã kiểm chứng trên máy chủ repo, agy 1.5.5)
+## 3. agy configuration map (verified on the owner's machine, agy 1.5.5)
 
-| Thứ | Vị trí trên máy | Cách quản lý trong repo |
+| Item | Location on the machine | How the repo manages it |
 |---|---|---|
-| Quy tắc chung | `~/.gemini/GEMINI.md` | Sinh từ `core` + `profile` (mục 5.2) |
-| Cài đặt CLI | `~/.gemini/antigravity-cli/settings.json` | Chỉ trộn khóa `permissions.allow`; giữ nguyên mọi khóa khác |
-| Skill lẻ | `~/.gemini/config/skills/<tên>/` | Công cụ `skills` của vercel-labs (`npx skills add … -g -a antigravity`), khóa ở `~/.agents/.skill-lock.json` |
-| Plugin | `~/.gemini/config/plugins/<tên>/` (có `plugin.json` + `skills/`) | Xem mục 4 |
-| Danh sách plugin chợ | `~/.gemini/config/config.json` → `plugins` | Đọc bằng `agy plugin list --json` |
-| MCP | `~/.gemini/config/mcp_config.json` | Lưu định nghĩa server; giá trị bí mật thay bằng `${TÊN_BIẾN}` |
-| Hook toàn cục | `~/.gemini/config/hooks.json` | Không dùng; hook đi kèm plugin riêng của repo |
-| Lịch sử, log, cache | `~/.gemini/antigravity*/{conversations,brain,cache,…}`, `*.db`, `history.jsonl`, `cli.log` | **Không bao giờ** đồng bộ |
+| Global rules | `~/.gemini/GEMINI.md` | Generated from `core` + `profile` (section 5.2) |
+| CLI settings | `~/.gemini/antigravity-cli/settings.json` | Merge only `permissions.allow`; preserve all other keys |
+| Standalone skills | `~/.gemini/config/skills/<name>/` | The vercel-labs `skills` tool (`npx skills add ... -g -a antigravity`), with a lock at `~/.agents/.skill-lock.json` |
+| Plugins | `~/.gemini/config/plugins/<name>/` (with `plugin.json` + `skills/`) | See section 4 |
+| Marketplace plugin list | `~/.gemini/config/config.json` -> `plugins` | Read through `agy plugin list --json` |
+| MCP | `~/.gemini/config/mcp_config.json` | Store server definitions; replace secret values with `${VARIABLE_NAME}` |
+| Global hooks | `~/.gemini/config/hooks.json` | Not used; hooks are bundled with the repo's own plugin |
+| History, logs, caches | `~/.gemini/antigravity*/{conversations,brain,cache,...}`, `*.db`, `history.jsonl`, `cli.log` | **Never** sync |
 
-Đặc tính agy đã kiểm chứng, bản thiết kế dựa vào:
+Verified agy behavior that this design relies on:
 
-- `permissions.allow` so khớp **chính xác** cả câu lệnh (`command(git status)` không cho `git status --short`); không hỗ trợ `*`.
-- `agy plugin install <đường-dẫn-thư-mục>` cài plugin cục bộ; `agy plugin validate <thư-mục>` kiểm tra plugin.
-- Plugin có thể mang `hooks.json` riêng. Hook của repo dùng sự kiện `SessionStart`. Hook chạy qua `cmd /c` trên Windows, mặc định hết giờ sau 30 giây, nhận JSON qua stdin và phải in JSON ra stdout.
-- Ở chế độ `--print` (chạy nền), lệnh chưa được cho phép bị từ chối tự động.
+- `permissions.allow` matches the **entire command exactly** (`command(git status)` does not allow `git status --short`); `*` is not supported.
+- `agy plugin install <directory-path>` installs a local plugin; `agy plugin validate <directory>` validates a plugin.
+- Plugins can include their own `hooks.json`. The repo's hook uses the `SessionStart` event. Hooks run through `cmd /c` on Windows, have a default timeout of 30 seconds, receive JSON through stdin, and must print JSON to stdout.
+- In `--print` mode (background execution), commands that have not been allowed are automatically denied.
 
-## 4. Nguồn skill và plugin: ghi nguồn, không chép
+## 4. Skill and plugin sources: record sources instead of copying them
 
-Repo **không chứa bản sao** skill của bên thứ ba. Repo chỉ ghi chúng lấy từ đâu (`sources.json`) và phiên bản đã chạy tốt (`sources.lock.json`). Lợi: luôn lấy được bản mới, repo nhẹ, đúng giấy phép, quay lui được.
+The repo **does not contain copies** of third-party skills. It only records where they come from (`sources.json`) and versions known to work (`sources.lock.json`). Benefits: access to new versions, a small repo, license compliance, and rollback.
 
-Năm loại nguồn. Mọi nguồn trên GitHub đều tải bằng `git` ở đúng SHA commit, vì cách đó khóa và quay lui được chắc chắn:
+There are five source types. Every GitHub source is downloaded using `git` at the exact commit SHA, which makes version locking and rollback reliable:
 
-| Loại | Ví dụ hiện có | Cài (ở SHA khóa) | Cập nhật | Khóa phiên bản |
+| Type | Current examples | Installation (at the locked SHA) | Update | Version lock |
 |---|---|---|---|---|
-| `github-skills` | `mattpocock/skills` (38 skill), `vercel-labs/skills` (find-skills) | Tải thư mục từng skill (sparse checkout) rồi chép vào `~/.gemini/config/skills/<tên>` | Lấy SHA mới nhất của nhánh mặc định | SHA commit |
-| `git-plugin` | `obra/superpowers` (MIT) | `git clone` vào `~/.gemini/config/plugins/<tên>`, `checkout` SHA | `git fetch` + SHA mới nhất | SHA commit |
-| `packaged-plugin` | `anthropics/knowledge-work-plugins` → `engineering`, `design`; `anthropics/skills` → `mcp-builder`, `pdf`, `docx`, `xlsx`, `pptx` | Tải thư mục con, đóng gói thành plugin (`plugin.json` + `skills/`), rồi `agy plugin install <thư-mục>` | Tải bản mới nhất, đóng gói lại | SHA commit |
-| `pip-tool` | `graphifyy` (graphify; Apache-2.0 + MIT). Là công cụ **bản đồ dự án mặc định**; chỉ cài khi profile chọn nó (mục 5.1) | `python -m pip install --user graphifyy==<phiên bản>` rồi `graphify install --platform antigravity-windows` (công cụ tự cài skill cho Antigravity) | Cài bản mới nhất trên PyPI rồi chạy lại `graphify install` | Số phiên bản PyPI |
-| `marketplace` | `chrome-devtools-plugin`, `gemini-api`, `modern-web-guidance-plugin` (chợ `antigravity-plugins-official`) | `agy plugin install <tên>@<chợ>` | Cài lại bản mới nhất | Ghi số phiên bản để theo dõi. `agy` không cho cài đúng một phiên bản, nên loại này **chấp nhận trôi phiên bản**; để quay lui, giữ bản sao lần chạy tốt gần nhất ở `~/.agy-config-state/snapshots/<tên>/` |
+| `github-skills` | `mattpocock/skills` (38 skills), `vercel-labs/skills` (find-skills) | Download individual skill directories (sparse checkout), then copy them to `~/.gemini/config/skills/<name>` | Get the latest SHA on the default branch | Commit SHA |
+| `git-plugin` | `obra/superpowers` (MIT) | `git clone` into `~/.gemini/config/plugins/<name>`, then `checkout` the SHA | `git fetch` + latest SHA | Commit SHA |
+| `packaged-plugin` | `anthropics/knowledge-work-plugins` -> `engineering`, `design`; `anthropics/skills` -> `mcp-builder`, `pdf`, `docx`, `xlsx`, `pptx` | Download the subdirectory, package it as a plugin (`plugin.json` + `skills/`), then run `agy plugin install <directory>` | Download the latest version and repackage it | Commit SHA |
+| `pip-tool` | `graphifyy` (graphify; Apache-2.0 + MIT). The default **project mapping tool**; installed only when selected by the profile (section 5.1) | `python -m pip install --user graphifyy==<version>`, then `graphify install --platform antigravity-windows` (the tool installs its own Antigravity skill) | Install the latest version from PyPI, then run `graphify install` again | PyPI version number |
+| `marketplace` | `chrome-devtools-plugin`, `gemini-api`, `modern-web-guidance-plugin` (`antigravity-plugins-official` marketplace) | `agy plugin install <name>@<marketplace>` | Reinstall the latest version | Record the version number for tracking. `agy` cannot install an exact version, so this type **accepts version drift**; for rollback, keep the last known working copy at `~/.agy-config-state/snapshots/<name>/` |
 
-Công cụ `skills` của vercel-labs (`npx skills …`) chỉ dùng để **tìm** skill mới, và để `sync` biết người dùng vừa tự cài skill gì: đọc nguồn + đường dẫn từ `~/.agents/.skill-lock.json` rồi ghi thành mục `github-skills`.
+The vercel-labs `skills` tool (`npx skills ...`) is used only to **find** new skills and to let `sync` detect skills the user has installed manually: read the source + path from `~/.agents/.skill-lock.json`, then record a `github-skills` entry.
 
-Giấy phép đã kiểm chứng trên repo gốc: `obra/superpowers` MIT, `mattpocock/skills` MIT, `anthropics/knowledge-work-plugins` Apache-2.0, `anthropics/skills` Apache-2.0 (README của repo ghi rõ cả `docx`, `pdf`, `pptx`, `xlsx` đều Apache-2.0).
+Licenses verified in the original repos: `obra/superpowers` MIT, `mattpocock/skills` MIT, `anthropics/knowledge-work-plugins` Apache-2.0, `anthropics/skills` Apache-2.0 (the repo's README explicitly states that `docx`, `pdf`, `pptx`, and `xlsx` are all Apache-2.0).
 
-Vì sao `engineering`, `design` là plugin chứ không là skill lẻ: chúng có skill trùng tên với skill lẻ (`code-review` có cả ở Matt Pocock lẫn `engineering`). Plugin có không gian tên riêng nên không đè nhau.
+Why `engineering` and `design` are plugins rather than standalone skills: they contain skills with the same names as standalone skills (`code-review` exists in both Matt Pocock's skills and `engineering`). Plugins have their own namespaces, so they do not overwrite each other.
 
-**Phân loại skill/plugin tìm thấy trên máy** (quy tắc duy nhất, `sync` áp dụng):
+**Classifying skills/plugins found on a machine** (the single set of rules applied by `sync`):
 
-1. Khớp một mục trong `sources.json` → là nguồn ngoài, chỉ ghi nguồn.
-2. Có tên trong `ownSkills`/`ownPlugins` của `profile.json` → là đồ tự viết. Lưu nguyên văn trong `profiles/<tên>/skills/` hoặc `profiles/<tên>/plugins/` và được đẩy lên.
-3. Có tên trong `ignored` của `profile.json` → bỏ qua.
-4. Còn lại là **chưa rõ**. Thứ chưa rõ **không bao giờ** được đẩy lên; nó chỉ được ghi vào `~/.agy-config-state/unknown.json`. Skill `agy-self-config` hỏi người dùng rồi xếp vào một trong ba nhóm trên: khai báo nguồn, đánh dấu tự viết, hoặc bỏ qua.
+1. Matches an entry in `sources.json` -> an external source; record only the source.
+2. Named in `ownSkills`/`ownPlugins` in `profile.json` -> user-authored content. Store it verbatim in `profiles/<name>/skills/` or `profiles/<name>/plugins/` and push it.
+3. Named in `ignored` in `profile.json` -> ignore it.
+4. Everything else is **unknown**. Unknown items are **never** pushed; they are recorded only in `~/.agy-config-state/unknown.json`. The `agy-self-config` skill asks the user, then assigns each item to one of the three groups above: declare its source, mark it as user-authored, or ignore it.
 
-## 5. Cấu trúc repo
+## 5. Repo structure
 
 ```text
-README.md                 # tiếng Anh, có link sang README.vi.md
-README.vi.md              # tiếng Việt
-LICENSE                   # MIT cho phần của repo
-THIRD_PARTY.md            # nguồn + giấy phép của mọi nguồn trong sources.json
+README.md                 # English, with a link to README.vi.md
+README.vi.md              # Vietnamese
+LICENSE                   # MIT for this repo's own content
+THIRD_PARTY.md            # sources + licenses for every source in sources.json
 CONTRIBUTING.md / CONTRIBUTING.vi.md
-SECURITY.md               # cách báo lỗ hổng
+SECURITY.md               # how to report vulnerabilities
 core/
-  GEMINI.core.md          # quy tắc dùng chung (tiếng Anh, không gắn ngôn ngữ trả lời)
-  permissions.json        # 8 lệnh git chỉ đọc
-  sources.json            # nguồn dùng chung (mục 4)
-  sources.lock.json       # phiên bản đã kiểm chứng
-  plugins/agy-self-config/  # plugin riêng của repo: skill tự bảo trì + hook
+  GEMINI.core.md          # shared rules (English, without a fixed reply language)
+  permissions.json        # 8 read-only git commands
+  sources.json            # shared sources (section 4)
+  sources.lock.json       # verified versions
+  plugins/agy-self-config/  # the repo's own plugin: maintenance skill + hook
 profiles/
-  _template/              # mẫu cho người mới
-  lianharman/             # profile của chủ repo
-    profile.json          # ngôn ngữ, cờ owner/sync, nguồn thêm, quyền thêm
-    GEMINI.profile.md     # quy tắc riêng (vd. trả lời tiếng Việt)
-    sources.json / sources.lock.json   # nguồn chỉ profile này dùng
-    plugins/ skills/      # đồ tự viết
+  _template/              # template for new users
+  lianharman/             # the owner's profile
+    profile.json          # language, owner/sync flags, extra sources and permissions
+    GEMINI.profile.md     # personal rules (e.g. reply in Vietnamese)
+    sources.json / sources.lock.json   # sources used only by this profile
+    plugins/ skills/      # user-authored content
 scripts/
-  install.ps1             # cài lần đầu
-  apply.ps1               # repo → máy
-  sync.ps1                # máy → repo (chỉ profile owner)
-  update.ps1              # cập nhật từ nguồn gốc hằng tuần
-  maintain.ps1            # bảo trì hằng tuần khi khởi động agy, hoặc chạy tay
-  lib/                    # hàm dùng chung
+  install.ps1             # first-time installation
+  apply.ps1               # repo -> machine
+  sync.ps1                # machine -> repo (owner profile only)
+  update.ps1              # weekly updates from original sources
+  maintain.ps1            # weekly maintenance when agy starts, or manual execution
+  lib/                    # shared functions
 tests/                    # Pester
 .github/
-  workflows/validate.yml  # kiểm tra mọi PR
+  workflows/validate.yml  # validate every PR
   CODEOWNERS
   PULL_REQUEST_TEMPLATE.md
 docs/
@@ -134,199 +134,199 @@ docs/
 }
 ```
 
-`projectMap.tool` là skill agy dùng để có bản đồ kiến thức của dự án khi vào dự án (mục 7):
+`projectMap.tool` selects the skill agy uses to obtain a knowledge map when entering a project (section 7):
 
-- `"graphify"` (mặc định): cài nguồn `graphifyy`.
-- Tên một skill khác người dùng đang dùng: không cài graphify; quy tắc định hướng gọi skill đó.
-- `"none"`: bỏ bước bản đồ dự án.
+- `"graphify"` (default): install the `graphifyy` source.
+- The name of another skill the user already uses: do not install graphify; the orientation rules call that skill.
+- `"none"`: skip the project mapping step.
 
-### 5.3 Vai trò của từng máy
+### 5.3 Role of each machine
 
-Vai trò được quyết **theo máy**, không ghi trong file dùng chung. `install` thử `git push --dry-run` lên `origin`, rồi lưu kết quả cùng tên profile vào `~/.agy-config-state/machine.json`:
+The role is determined **per machine**, not stored in a shared file. `install` tries `git push --dry-run` to `origin`, then saves the result along with the profile name in `~/.agy-config-state/machine.json`:
 
-- **owner**: có quyền đẩy lên `origin`. Máy chạy `sync` để đẩy lên và chạy `update` để cập nhật nguồn.
-- **follower**: không có quyền đẩy. Máy chỉ chạy `apply` và chạy đúng theo file khóa trên `main`. Không bao giờ commit.
+- **owner**: has push access to `origin`. The machine runs `sync` to push changes and `update` to update sources.
+- **follower**: has no push access. The machine only runs `apply` and follows the lock files on `main` exactly. It never commits.
 
-Người dùng khác được khuyên **fork repo rồi cài từ bản fork của mình**. Khi đó họ là owner của bản fork, cấu hình của họ cũng được sao lưu. Muốn lấy cải tiến từ repo gốc thì bấm "Sync fork" trên GitHub, hoặc nhờ agy (skill `agy-self-config`) gộp `upstream/main`. Việc gộp này không tự động. Clone trực tiếp repo gốc vẫn được, nhưng chỉ ở vai trò follower và không có sao lưu.
+Other users are advised to **fork the repo and install from their own fork**. They then own their fork, and their configuration is backed up too. To receive improvements from the original repo, click "Sync fork" on GitHub or ask agy (the `agy-self-config` skill) to merge `upstream/main`. This merge is not automatic. Cloning the original repo directly is still supported, but only as a follower, without backups.
 
-### 5.2 `GEMINI.md` sinh ra
+### 5.2 Generated `GEMINI.md`
 
-`apply` ghép file theo vùng đánh dấu:
+`apply` combines files using marked regions:
 
 ```markdown
 <!-- agy-config:core:start -->
-…nội dung core/GEMINI.core.md…
+...contents of core/GEMINI.core.md...
 <!-- agy-config:core:end -->
 <!-- agy-config:profile:start -->
-…nội dung profiles/<tên>/GEMINI.profile.md, gồm quy tắc ngôn ngữ…
+...contents of profiles/<name>/GEMINI.profile.md, including language rules...
 <!-- agy-config:profile:end -->
 ```
 
-`sync` đọc ngược theo vùng: phần sửa trong vùng `profile` → `GEMINI.profile.md`. Phần sửa trong vùng `core` → `core/GEMINI.core.md`, chỉ khi profile là owner. Chữ nằm ngoài các vùng được gộp vào vùng `profile`.
+`sync` reads the regions back: edits in the `profile` region -> `GEMINI.profile.md`. Edits in the `core` region -> `core/GEMINI.core.md`, only when the profile is an owner. Text outside the regions is merged into the `profile` region.
 
-## 6. Các luồng
+## 6. Flows
 
-### 6.1 Cài lần đầu (`install.ps1`)
+### 6.1 First-time installation (`install.ps1`)
 
-Cách chạy, ghi trong README:
+Ways to run it, documented in the README:
 
-1. `git clone` repo, rồi chạy `.\scripts\install.ps1` (khuyên dùng: đọc được script trước khi chạy).
-2. Hoặc một dòng `irm <raw-url>/scripts/install.ps1 | iex`. Cách này tự clone vào `~/.agy-config`.
+1. `git clone` the repo, then run `.\scripts\install.ps1` (recommended: users can read the script before running it).
+2. Or use the one-liner `irm <raw-url>/scripts/install.ps1 | iex`. This clones into `~/.agy-config` automatically.
 
-Các bước của script:
+Script steps:
 
-1. Kiểm tra `git`, `node`/`npx`, `agy`; thiếu thì in link cài và dừng.
-2. Hỏi profile: dùng profile có sẵn, hoặc tạo mới từ `_template`. Khi tạo mới thì hỏi:
-   - ngôn ngữ trả lời (`vi`/`en`/khác);
-   - công cụ bản đồ dự án: Enter để dùng graphify; hoặc gõ tên skill khác đang dùng; hoặc `none`.
-3. Sao lưu cấu hình hiện có của agy vào `~/.agy-config-backup/<thời-gian>/` trước khi đổi gì.
-4. Chạy `apply`.
-5. Xác định vai trò máy (mục 5.3). Không đăng ký tác vụ Windows Task Scheduler nào; xóa ba tác vụ do phiên bản cũ tạo: `agy-config-apply`, `agy-config-sync`, `agy-config-update`. Bảo trì hằng tuần được kích hoạt bởi hook `SessionStart` khi khởi động agy (mục 7).
-6. In tóm tắt đã cài những gì, kèm cách gỡ.
+1. Check for `git`, `node`/`npx`, and `agy`; if anything is missing, print an installation link and stop.
+2. Ask which profile to use: an existing profile, or a new one created from `_template`. When creating a profile, ask for:
+   - the reply language (`vi`/`en`/another language);
+   - the project mapping tool: press Enter to use graphify, enter the name of another skill already in use, or enter `none`.
+3. Back up the existing agy configuration to `~/.agy-config-backup/<timestamp>/` before making any changes.
+4. Run `apply`.
+5. Determine the machine's role (section 5.3). Do not register any Windows Task Scheduler tasks; remove the three tasks created by older versions: `agy-config-apply`, `agy-config-sync`, `agy-config-update`. Weekly maintenance is triggered by the `SessionStart` hook when agy starts (section 7).
+6. Print a summary of what was installed, with uninstall instructions.
 
-Chạy lại `install.ps1` nhiều lần vẫn an toàn (idempotent).
+Running `install.ps1` repeatedly is safe (idempotent).
 
-Lời nhắc và thông báo script chỉ dùng tiếng Anh, lấy từ `scripts/i18n/en.json`; không còn file i18n tiếng Việt. Ngôn ngữ trả lời của profile vẫn tùy chỉnh được; quy tắc được sinh bằng tiếng Anh, ví dụ "Always reply to the user in Vietnamese".
+Script prompts and messages use English only, from `scripts/i18n/en.json`; there is no Vietnamese i18n file. Each profile's reply language remains configurable; its rules are generated in English, for example, "Always reply to the user in Vietnamese".
 
-### 6.2 Repo → máy (`apply.ps1`)
+### 6.2 Repo -> machine (`apply.ps1`)
 
-0. **Thu về trước**: chạy phần "gom" của `sync` (bước 1 mục 6.3), ghi vào cây làm việc của repo, không commit. Vậy chỗ người dùng sửa tay `GEMINI.md` không bị bước 4 xóa mất. Máy owner thì chạy `sync` đầy đủ.
-1. `git pull --ff-only` nhánh `main`. Không fast-forward được thì dừng và ghi log.
-2. Cài/cập nhật mọi nguồn trong `core` + profile **đúng theo file khóa**. Thứ nào lần `apply` trước đã cài mà nay không còn trong repo thì gỡ. Danh sách đã cài nằm ở `~/.agy-config-state/applied.json`. `apply` chỉ gỡ những gì chính nó đã cài, không động vào thứ người dùng tự cài ngoài hệ thống.
-3. Cài plugin `agy-self-config` và đồ tự viết của profile.
-4. Sinh `GEMINI.md` (5.2).
-5. Trộn `permissions.allow`: thêm lệnh còn thiếu, giữ nguyên các khóa khác.
-6. Ghi `mcp_config.json`: server còn thiếu thì thêm, `${TÊN_BIẾN}` lấy từ biến môi trường của người dùng.
-7. Kiểm tra: `agy plugin validate` từng plugin đã cài và `agy plugin list --json` có đủ tên.
+0. **Collect first**: run the "collect" part of `sync` (step 1 in section 6.3), writing into the repo's working tree without committing. This prevents step 4 from deleting the user's manual edits to `GEMINI.md`. Owner machines run the full `sync`.
+1. `git pull --ff-only` on `main`. If a fast-forward is not possible, stop and log it.
+2. Install/update every source in `core` + the profile **exactly as specified by the lock files**. Remove items installed by the previous `apply` that are no longer in the repo. The list of installed items is stored in `~/.agy-config-state/applied.json`. `apply` removes only what it installed itself and leaves items the user installed outside the system alone.
+3. Install the `agy-self-config` plugin and the profile's user-authored content.
+4. Generate `GEMINI.md` (5.2).
+5. Merge `permissions.allow`: add missing commands and preserve all other keys.
+6. Write `mcp_config.json`: add missing servers and resolve `${VARIABLE_NAME}` from the user's environment variables.
+7. Verify: run `agy plugin validate` on each installed plugin and check that `agy plugin list --json` includes all names.
 
-### 6.3 Máy → repo (`sync.ps1`, chỉ owner)
+### 6.3 Machine -> repo (`sync.ps1`, owner only)
 
-Kích hoạt từ ba chỗ:
+Triggered from three places:
 
-- `apply` chạy sync đầy đủ trước khi pull và cài trên máy owner, bao gồm trong đợt bảo trì hằng tuần khi khởi động agy.
-- Skill `agy-self-config` chạy `scripts/sync.ps1 -Force` ngay sau mỗi thay đổi cấu hình.
-- Lệnh tay `scripts/sync.ps1 -Force`.
+- `apply` runs the full sync before pulling and installing on owner machines, including during weekly maintenance when agy starts.
+- The `agy-self-config` skill runs `scripts/sync.ps1 -Force` immediately after every configuration change.
+- The manual command `scripts/sync.ps1 -Force`.
 
-Chống chạy dồn: không chạy nếu lần trước cách chưa đủ `debounceMinutes` (trừ khi dùng `-Force`), hoặc đang có một tiến trình sync khác (file khóa).
+Debouncing: skip the run if less than `debounceMinutes` has passed since the previous run (unless `-Force` is used), or if another sync process is running (lock file).
 
-Các bước:
+Steps:
 
-1. Gom về repo theo kiểu **ba chiều**: so trạng thái máy hiện tại với `~/.agy-config-state/applied.json` (lần `apply` gần nhất), rồi chỉ ghi vào repo những gì **máy này** đã thêm hoặc gỡ từ lần đó. Một máy cũ hay vừa cài sẽ không xóa đồ của máy khác. Những thứ được gom:
-   - Vùng `GEMINI.md` (5.2).
-   - `permissions.allow` trừ phần đã có trong `core`.
-   - Danh sách skill-cli từ `~/.agents/.skill-lock.json` (nguồn + tên skill + hash).
-   - Danh sách plugin chợ từ `agy plugin list --json`.
-   - Plugin/skill tự viết (thứ không khớp nguồn nào).
-   - Định nghĩa MCP, với giá trị bí mật thay bằng `${TÊN_BIẾN}`.
-2. **Không gom**: `trustedWorkspaces`, `model`, tên máy, lịch sử, log, cache, skill không rõ nguồn (ghi vào báo cáo cục bộ).
-3. Quét bí mật trên mọi file sắp commit. Thấy dấu hiệu (`ghp_`, `github_pat_`, `sk-`, `AIza`, `-----BEGIN`, phép gán giá trị cho `password`, email, đường dẫn `C:\Users\<tên>`) thì **dừng hẳn, không commit**, ghi log.
-4. Không có thay đổi thì thoát.
-5. Có thay đổi: commit `sync(<profile>): <ngày giờ>`, `git pull --rebase`, `git push`. Rebase xung đột thì hủy rebase, đẩy sang nhánh `sync/<profile>-<thời-gian>`, ghi log để agy xử lý (mục 7).
+1. Collect into the repo using a **three-way** comparison: compare the machine's current state with `~/.agy-config-state/applied.json` (the most recent `apply`), then write only what **this machine** has added or removed since then. An outdated or newly installed machine will not delete another machine's content. Collect:
+   - `GEMINI.md` regions (5.2).
+   - `permissions.allow`, excluding entries already in `core`.
+   - The skill-cli list from `~/.agents/.skill-lock.json` (source + skill name + hash).
+   - The marketplace plugin list from `agy plugin list --json`.
+   - User-authored plugins/skills (items that do not match any source).
+   - MCP definitions, with secret values replaced by `${VARIABLE_NAME}`.
+2. **Do not collect**: `trustedWorkspaces`, `model`, machine names, history, logs, caches, or skills with unknown sources (record these in a local report).
+3. Scan every file about to be committed for secrets. If a suspicious pattern is found (`ghp_`, `github_pat_`, `sk-`, `AIza`, `-----BEGIN`, a value assigned to `password`, an email address, or a `C:\Users\<name>` path), **stop completely without committing** and log it.
+4. Exit if there are no changes.
+5. If there are changes: commit `sync(<profile>): <date time>`, then `git pull --rebase` and `git push`. If the rebase conflicts, abort it, push to `sync/<profile>-<timestamp>`, and log it for agy to handle (section 7).
 
-Log ở `~/.agy-config-state/logs/<apply|sync|update|maintain>-yyyyMMdd.log`, nằm ngoài repo.
+Logs are stored at `~/.agy-config-state/logs/<apply|sync|update|maintain>-yyyyMMdd.log`, outside the repo.
 
-### 6.4 Cập nhật công nghệ (`update.ps1`, do bảo trì hằng tuần chạy, chỉ máy owner)
+### 6.4 Technology updates (`update.ps1`, run by weekly maintenance, owner machines only)
 
-`scripts/maintain.ps1` chạy `apply` trước (sync đầy đủ để sao lưu cấu hình máy owner, rồi pull và cài), sau đó chạy `update`. Máy follower chỉ chạy `apply`. Có thể chạy tay `scripts/update.ps1`, thêm `-NoPush` để thử tại máy mà không đẩy nhánh, hoặc chạy `scripts/maintain.ps1` để bảo trì ngay.
+`scripts/maintain.ps1` runs `apply` first (a full sync to back up the owner machine's configuration, then pull and install), followed by `update`. Follower machines only run `apply`. Users can run `scripts/update.ps1` manually, add `-NoPush` to try it locally without pushing the branch, or run `scripts/maintain.ps1` for immediate maintenance.
 
-1. Với từng nguồn: lấy SHA/phiên bản mới nhất và cài thử trên máy owner.
-2. Kiểm tra từng nguồn (`agy plugin validate`, có `SKILL.md` hợp lệ). Nguồn nào lỗi thì **quay về phiên bản trong file khóa**, các nguồn khác vẫn lên bản mới.
-3. Ghi phiên bản mới vào file khóa. File khóa mới đến `main` theo cách ở mục 6.5.
-4. Ghi một dòng tóm tắt vào log: nguồn nào lên bản nào, nguồn nào bị quay lui.
+1. For each source, get the latest SHA/version and try installing it on the owner's machine.
+2. Validate each source (`agy plugin validate`, a valid `SKILL.md`). If a source fails, **roll it back to the version in the lock file**; other sources still update.
+3. Record the new versions in the lock files. New lock files reach `main` as described in section 6.5.
+4. Write a one-line log summary: which sources moved to which versions, and which were rolled back.
 
-Máy follower không bao giờ tự tải bản mới nhất từ nguồn ngoài. Nó nhận bản mới khi file khóa trên `main` đổi, qua `apply` trong đợt bảo trì hằng tuần khi khởi động agy hoặc khi chạy tay.
+Follower machines never fetch the latest versions from external sources on their own. They receive updates when the lock files on `main` change, through `apply` during weekly maintenance when agy starts or through a manual run.
 
-### 6.5 File khóa mới đi lên `main` thế nào
+### 6.5 How new lock files reach `main`
 
-Chủ repo chọn: **qua PR, một cú bấm mỗi tuần**.
+The owner chose: **through a PR, with one click each week**.
 
-1. `update` đẩy file khóa mới lên nhánh `update/sources`, rồi mở PR "Weekly source updates / Cập nhật nguồn tuần này" vào `main`. Nội dung PR là bảng: nguồn, phiên bản cũ → mới, nguồn bị quay lui. Nếu PR tuần trước chưa merge thì cập nhật luôn PR đó thay vì mở PR mới.
-2. Máy owner vẫn **dùng bản mới ngay**: bản khóa đang chờ được giữ ở `~/.agy-config-state/pending.lock.json`. Trên máy owner, `apply` ưu tiên bản chờ cho các nguồn có trong đó, nên không bị hạ phiên bản ở lần bảo trì tiếp theo. PR được merge thì xóa bản chờ. PR bị đóng mà không merge thì lần `apply` sau quay về file khóa trên `main`.
-3. **Không cần cài gì thêm trên máy** để mở PR: máy owner chỉ `git push` nhánh `update/sources`. Workflow `.github/workflows/update-pr.yml` chạy trên GitHub khi nhánh đó được đẩy lên, rồi tạo hoặc cập nhật PR bằng `GITHUB_TOKEN` có sẵn.
-   - Repo cần bật một lần: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests". README ghi rõ bước này cho chủ repo và người fork.
-   - PR do `GITHUB_TOKEN` tạo không tự kích hoạt workflow khác, nên `validate.yml` chạy cả khi có push lên `update/**`. Kết quả kiểm tra gắn với commit, nên vẫn hiện trên PR.
-   - Nếu workflow không mở được PR (chưa bật quyền), nó ghi link "Create pull request" vào phần tóm tắt của lần chạy; `update` cũng ghi link đó vào log trên máy.
-4. Thay đổi cấu hình cá nhân của owner (`sync`: quy tắc, skill tự viết, quyền) vẫn đẩy thẳng lên `main`, không qua PR.
+1. `update` pushes the new lock files to `update/sources`, then opens a PR titled "Weekly source updates" into `main`. The PR body is a table: source, old -> new version, and rolled-back sources. If the previous week's PR has not been merged, update that PR instead of opening a new one.
+2. The owner's machine still **uses the new versions immediately**: the pending lock is stored at `~/.agy-config-state/pending.lock.json`. On the owner's machine, `apply` prefers the pending lock for sources listed in it, preventing a downgrade during the next maintenance run. Delete the pending lock when the PR is merged. If the PR is closed without merging, the next `apply` returns to the lock files on `main`.
+3. **No additional software is needed on the machine** to open PRs: the owner's machine only runs `git push` for `update/sources`. The `.github/workflows/update-pr.yml` workflow runs on GitHub when that branch is pushed, then creates or updates the PR using the built-in `GITHUB_TOKEN`.
+   - A one-time repo setting is required: Settings -> Actions -> General -> "Allow GitHub Actions to create and approve pull requests". The README explains this step for the owner and users who fork the repo.
+   - PRs created by `GITHUB_TOKEN` do not automatically trigger other workflows, so `validate.yml` also runs on pushes to `update/**`. Check results are attached to the commit, so they still appear on the PR.
+   - If the workflow cannot open the PR (permission has not been enabled), it writes a "Create pull request" link in the run summary; `update` also writes that link to the local log.
+4. The owner's personal configuration changes (`sync`: rules, user-authored skills, permissions) still go directly to `main`, without a PR.
 
-## 7. Tự bảo trì: plugin `agy-self-config`
+## 7. Self-maintenance: the `agy-self-config` plugin
 
-Plugin của repo, cài trên mọi máy. Gồm:
+The repo's own plugin, installed on every machine. It includes:
 
-- **Chỉ có hook `SessionStart`**, tên `agy-config-weekly`, gọi `hooks/on-start.ps1` khi agy khởi động. Hook kiểm tra hai mốc trong `~/.agy-config-state`: `weekly.last` (lần bảo trì thành công) và `weekly-attempt.last` (lần thử gần nhất). Nếu lần thành công đã cách ít nhất 7 ngày và lần thử đã cách ít nhất 1 ngày (hoặc thiếu mốc tương ứng), hook khởi chạy `scripts/maintain.ps1` ẩn ở nền rồi in `{}` và trả về ngay; nếu chưa đủ điều kiện thì không làm gì.
-  - Máy owner chạy `apply` (sync đầy đủ để sao lưu trước, rồi pull và cài) rồi `update`; follower chỉ chạy `apply`.
-  - Chỉ ghi `weekly.last` khi mọi bước thành công. Tuần bị lỗi được thử lại tối đa 1 lần/ngày ở lần khởi động agy tiếp theo. Không có tác vụ nền chạy khi agy đóng.
-  - Chạy `scripts/maintain.ps1` để bảo trì ngay, bỏ qua kiểm tra thời gian của hook. Xóa `~/.agy-config-state/weekly.last` để hook chạy lại sớm hơn ở lần khởi động agy sau; vẫn phải đủ 1 ngày từ lần thử gần nhất.
-- **Skill `agy-self-config`**, mô tả kích hoạt khi người dùng muốn: đổi cách agy làm việc; cài, gỡ hay tìm skill/plugin; sao lưu, khôi phục, chuyển máy; cập nhật; xem vì sao đồng bộ lỗi. Skill hướng dẫn agy:
-  - Sửa đúng file: thay đổi riêng thì sửa trong profile; thay đổi dùng chung thì sửa trong `core` (chỉ owner); thêm skill/plugin bên ngoài thì thêm vào `sources.json` của profile.
-  - Chạy `apply`/`sync`/`update`/`maintain` và đọc log trong `~/.agy-config-state/logs/`. Trên máy owner, chạy `scripts/sync.ps1 -Force` sau mỗi thay đổi để sao lưu ngay.
-  - Gỡ xung đột nhánh `sync/*` cùng người dùng.
-  - Tìm skill mới bằng `npx skills find` và gợi ý cho người dùng.
-  - Gửi đóng góp lên repo gốc bằng PR khi người dùng không phải owner.
-- `core/GEMINI.core.md` có thêm bước **bản đồ dự án** trong phần định hướng khi vào dự án, dùng công cụ trong `projectMap.tool`. `apply` ghi tên công cụ vào vùng `profile` của `GEMINI.md`.
-  - Với graphify: có `graphify-out/` thì đọc `GRAPH_REPORT.md` và dùng `graphify query/path/explain` thay vì mở nhiều file. Chưa có thì tự chạy `/graphify .` để tạo, rồi báo cho người dùng.
-  - Với công cụ khác: gọi skill đó theo cách tương tự.
-  - Lý do (chủ repo yêu cầu): agy có ngay bản đồ kiến thức của dự án, ít tốn token khi tìm file.
-- `core/GEMINI.core.md` có một dòng trỏ tới skill này. Sau khi cài, mọi yêu cầu kiểu "từ giờ bạn hãy…" đều đi qua skill, nên cấu hình luôn theo ý người dùng và được sao lưu.
+- **Only a `SessionStart` hook**, named `agy-config-weekly`, which calls `hooks/on-start.ps1` when agy starts. The hook checks two timestamps in `~/.agy-config-state`: `weekly.last` (the last successful maintenance run) and `weekly-attempt.last` (the last attempt). If at least 7 days have passed since the last success and at least 1 day since the last attempt (or the corresponding timestamp is missing), the hook starts `scripts/maintain.ps1` hidden in the background, prints `{}`, and returns immediately; otherwise, it does nothing.
+  - Owner machines run `apply` (a full sync to back up first, then pull and install), followed by `update`; followers only run `apply`.
+  - Write `weekly.last` only when every step succeeds. A failed weekly run is retried at most once per day on a subsequent agy start. No background tasks run while agy is closed.
+  - Run `scripts/maintain.ps1` for immediate maintenance, bypassing the hook's timing checks. Delete `~/.agy-config-state/weekly.last` to make the hook run sooner on the next agy start; at least 1 day must still have passed since the last attempt.
+- **The `agy-self-config` skill**, with a description that triggers when the user wants to change how agy works; install, remove, or find skills/plugins; back up, restore, or move to another machine; update; or investigate a sync failure. The skill instructs agy to:
+  - Edit the correct file: personal changes go in the profile; shared changes go in `core` (owner only); external skills/plugins go in the profile's `sources.json`.
+  - Run `apply`/`sync`/`update`/`maintain` and read logs in `~/.agy-config-state/logs/`. On owner machines, run `scripts/sync.ps1 -Force` after every change for an immediate backup.
+  - Resolve conflicts on `sync/*` branches with the user.
+  - Find new skills with `npx skills find` and suggest them to the user.
+  - Contribute to the original repo through PRs when the user is not the owner.
+- `core/GEMINI.core.md` adds a **project mapping** step to orientation when entering a project, using the tool in `projectMap.tool`. `apply` writes the tool's name into the `profile` region of `GEMINI.md`.
+  - With graphify: if `graphify-out/` exists, read `GRAPH_REPORT.md` and use `graphify query/path/explain` instead of opening many files. If it does not exist, automatically run `/graphify .` to create it, then tell the user.
+  - With another tool: call that skill in the same way.
+  - Reason (requested by the owner): agy immediately has a knowledge map of the project and uses fewer tokens to find files.
+- `core/GEMINI.core.md` includes a line pointing to this skill. After installation, every request like "from now on, please..." goes through the skill, keeping the configuration aligned with the user's wishes and backed up.
 
-## 8. Đóng góp và an toàn
+## 8. Contributions and safety
 
-- Nhánh `main` được bảo vệ: phải qua PR, 1 người duyệt, CI xanh. Chủ repo được bỏ qua để `sync` đẩy thẳng (GitHub branch protection, "allow bypass" cho owner).
-- `CODEOWNERS`: `scripts/`, `core/plugins/`, `.github/`, `core/sources*.json` bắt buộc chủ repo duyệt, vì đây là chỗ chạy lệnh trên máy người dùng hoặc quyết định tải code về.
-- `validate.yml` chạy trên mọi PR:
-  - JSON hợp lệ.
-  - `SKILL.md` có `name` + `description`.
-  - `plugin.json` hợp lệ.
-  - Quét bí mật (gitleaks).
-  - Cấm đường dẫn cá nhân và email.
-  - Cấm file nhị phân > 1 MB.
-  - Mỗi nguồn trong `sources.json` có mục trong `THIRD_PARTY.md`.
-  - PSScriptAnalyzer cho `scripts/`.
-  - Chạy test Pester.
-- Máy chỉ nhận cập nhật từ `main`.
-- `install.ps1` in ra những gì sẽ làm và hỏi xác nhận trước khi sao lưu, áp dụng cấu hình và dọn tác vụ cũ. `uninstall.ps1` gỡ plugin `agy-self-config` và các tác vụ Windows Task Scheduler còn sót từ phiên bản cũ.
+- `main` is protected: PRs, 1 reviewer, and passing CI are required. The owner can bypass protection so `sync` can push directly (GitHub branch protection, "allow bypass" for the owner).
+- `CODEOWNERS`: `scripts/`, `core/plugins/`, `.github/`, and `core/sources*.json` require the owner's review because they run commands on users' machines or determine which code is downloaded.
+- `validate.yml` runs on every PR:
+  - Valid JSON.
+  - `SKILL.md` has `name` + `description`.
+  - Valid `plugin.json`.
+  - Secret scanning (gitleaks).
+  - No personal paths or email addresses.
+  - No binary files > 1 MB.
+  - Every source in `sources.json` has an entry in `THIRD_PARTY.md`.
+  - PSScriptAnalyzer for `scripts/`.
+  - Run Pester tests.
+- Machines receive updates only from `main`.
+- `install.ps1` prints what it will do and asks for confirmation before backing up, applying the configuration, and cleaning up old tasks. `uninstall.ps1` removes the `agy-self-config` plugin and any Windows Task Scheduler tasks left over from older versions.
 
-## 9. Ràng buộc
+## 9. Constraints
 
-- Windows 10/11, Windows PowerShell 5.1 (có sẵn), không cần quyền admin.
-- Cần sẵn: `git`, `agy` ≥ 1.5, Node.js (chỉ để tìm skill bằng `npx skills`). Chỉ khi chọn graphify mới cần Python ≥ 3.10. Không cần GitHub CLI.
-- Chọn graphify mà thiếu Python: `install` vẫn cài mọi thứ khác, báo rõ graphify chưa cài được kèm cách cài Python (`winget install Python.Python.3.13`). `apply` thử lại trong đợt bảo trì hằng tuần sau hoặc khi chạy tay.
-- Script gọi agy qua lệnh CLI (`agy plugin …`), không sửa trực tiếp file nội bộ của agy ngoài các file trong bảng mục 3. Lý do: agy đổi định dạng file nội bộ thì script vẫn chạy.
-- Hook `SessionStart` có timeout 10 giây và trả về ngay; mọi việc nặng chạy tách rời.
-- Không chạy tác vụ nền khi agy đóng: bảo trì chạy khi khởi động agy, tối đa 1 lần/tuần. Lý do: để dành RAM cho game và công việc khác; tuần bị lỗi chỉ thử lại tối đa 1 lần/ngày khi khởi động agy.
+- Windows 10/11, Windows PowerShell 5.1 (built in), no administrator privileges required.
+- Prerequisites: `git`, `agy` >= 1.5, Node.js (only to find skills with `npx skills`). Python >= 3.10 is needed only when graphify is selected. GitHub CLI is not required.
+- If graphify is selected but Python is missing, `install` still installs everything else and clearly reports that graphify could not be installed, with Python installation instructions (`winget install Python.Python.3.13`). `apply` retries during the next weekly maintenance run or when run manually.
+- Scripts call agy through CLI commands (`agy plugin ...`) and do not directly edit agy's internal files except those in the table in section 3. Reason: scripts continue to work if agy changes its internal file formats.
+- The `SessionStart` hook has a 10-second timeout and returns immediately; all heavy work runs separately.
+- No background tasks run while agy is closed: maintenance runs when agy starts, at most once per week. Reason: leave RAM available for games and other work; a failed weekly run is retried at most once per day when agy starts.
 
-## 10. Quyết định của chủ repo
+## 10. Owner decisions
 
-- Repo công khai; mọi người dùng được và đóng góp qua PR.
-- Người dùng nhắm tới: cả người Việt lẫn quốc tế.
-- Tự động: tự đồng bộ, tự cập nhật công nghệ trên máy owner, không hỏi trước.
-- Không chạy tác vụ nền khi agy đóng: bảo trì chạy khi khởi động agy, tối đa 1 lần/tuần.
-- Bản cập nhật nguồn chỉ đến máy người khác sau khi chủ repo merge PR hằng tuần (mục 6.5).
-- Không cài GitHub CLI trên máy; PR do GitHub Actions mở.
-- Bước định hướng luôn dùng một công cụ bản đồ dự án. graphify là mặc định, không bắt buộc: người dùng đã có skill khác tương tự thì dùng skill đó và không cài graphify.
-- Chủ repo đã duyệt toàn bộ bản thiết kế (2026-11-11).
-- Tự lập: sau khi xây xong, việc bảo trì do agy làm, không cần Claude Code.
-- README hướng dẫn người vừa tải agy về.
+- The repo is public; anyone can use it and contribute through PRs.
+- Target users: both Vietnamese and international users.
+- Automation: automatic syncing and technology updates on owner machines, without asking first.
+- No background tasks run while agy is closed: maintenance runs when agy starts, at most once per week.
+- Source updates reach other users' machines only after the owner merges the weekly PR (section 6.5).
+- Do not install GitHub CLI on the machine; GitHub Actions opens PRs.
+- Orientation always uses a project mapping tool. graphify is the default, not mandatory: users who already have a similar skill use that skill without installing graphify.
+- The owner approved the entire design (2026-11-11).
+- Self-sufficiency: once built, agy handles maintenance without Claude Code.
+- The README guides users who have just downloaded agy.
 
-## 11. Quyết định do người thiết kế chọn (chủ repo có thể đổi)
+## 11. Designer decisions (the owner may change them)
 
-- Giấy phép MIT cho phần của repo.
-- README chính tiếng Anh + bản tiếng Việt; script cài hỏi ngôn ngữ trả lời. Văn bản script chỉ dùng tiếng Anh (`scripts/i18n/en.json`); quy tắc ngôn ngữ của profile cũng được sinh bằng tiếng Anh.
-- Không chép skill bên thứ ba vào repo; ghi nguồn + khóa phiên bản.
-- Thay 3 plugin Anthropic đang cài tay trên máy chủ repo (từ `~/.gemini/local-plugins`) bằng bản tải từ repo gốc qua `packaged-plugin`.
-- Không đồng bộ `trustedWorkspaces`, `model`, tên máy.
-- Thư mục clone mặc định `~/.agy-config`; nếu người dùng clone chỗ khác và chạy `install.ps1` từ đó thì dùng chỗ đó.
-- Mọi nguồn GitHub tải bằng `git` ở SHA commit (không dùng `npx skills add` để cài); công cụ `skills` chỉ để tìm skill và phát hiện skill người dùng vừa tự cài.
-- Plugin chợ chấp nhận trôi phiên bản, quay lui bằng bản sao lưu lần chạy tốt gần nhất.
-- Vai trò owner/follower quyết theo quyền đẩy của từng máy; người khác được khuyên fork.
-- `sync` ghi theo kiểu ba chiều so với lần `apply` gần nhất; `apply` chỉ gỡ những gì chính nó đã cài.
-- Đồ tự viết phải được khai trong `ownSkills`/`ownPlugins`; thứ chưa rõ nguồn không bao giờ tự đẩy lên.
-- Chống dồn sync 10 phút; `-Force` bỏ qua thời gian chờ. Bảo trì hằng tuần qua `SessionStart` theo quyết định của chủ repo ở mục 10.
-- Skill không rõ nguồn/giấy phép không tự đẩy lên.
-- Windows trước; macOS/Linux để người đóng góp thêm.
+- MIT license for the repo's own content.
+- Main README in English + a Vietnamese version; the installation script asks for the reply language. Script text uses English only (`scripts/i18n/en.json`); profile language rules are also generated in English.
+- Do not copy third-party skills into the repo; record sources + locked versions.
+- Replace the 3 Anthropic plugins manually installed on the owner's machine (from `~/.gemini/local-plugins`) with versions downloaded from their original repos through `packaged-plugin`.
+- Do not sync `trustedWorkspaces`, `model`, or machine names.
+- Default clone directory: `~/.agy-config`; if the user clones elsewhere and runs `install.ps1` there, use that location.
+- Download every GitHub source using `git` at a commit SHA (do not install with `npx skills add`); the `skills` tool is only for finding skills and detecting skills the user has installed manually.
+- Marketplace plugins accept version drift, with rollback through the last known working backup.
+- Determine the owner/follower role from each machine's push access; advise other users to fork.
+- `sync` writes changes using a three-way comparison against the most recent `apply`; `apply` removes only what it installed itself.
+- User-authored content must be declared in `ownSkills`/`ownPlugins`; items with unknown sources are never pushed automatically.
+- Debounce sync for 10 minutes; `-Force` bypasses the wait. Weekly maintenance runs through `SessionStart`, as decided by the owner in section 10.
+- Skills with unknown sources/licenses are not pushed automatically.
+- Windows first; leave macOS/Linux support to contributors.
 
-## 12. Để người xây dựng tự quyết
+## 12. Left to the implementer
 
-- Chi tiết bên trong script, định dạng log, biểu thức quét bí mật cụ thể.
-- Thông báo cho người dùng khi sync/update lỗi (toast Windows hay chỉ log).
-- Cấu trúc thư mục `tests/` và cách giả lập agy trong test.
-- Nội dung chi tiết của README, CONTRIBUTING (bám mục 6 và 8).
+- Script internals, log format, and specific secret-scanning patterns.
+- How to notify users when sync/update fails (Windows toast or logs only).
+- The `tests/` directory structure and how to mock agy in tests.
+- Detailed README and CONTRIBUTING content (following sections 6 and 8).
