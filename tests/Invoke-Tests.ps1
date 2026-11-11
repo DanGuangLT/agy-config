@@ -26,6 +26,8 @@ if (-not $pester) {
 }
 Import-Module $pester.Path -Force
 
+# powershell -File passes "a,b" as one string; split it.
+$Path = @($Path | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 if (-not $Path) {
     $Path = @((Join-Path $root 'tests\unit'), (Join-Path $root 'tests\integration')) | Where-Object { Test-Path $_ }
 }

@@ -1,0 +1,16 @@
+{
+  "ignored": [],
+  "language": "vi",
+  "name": "lianharman",
+  "ownPlugins": [],
+  "ownSkills": [],
+  "projectMap": {
+    "tool": "graphify"
+  },
+  "sync": {
+    "debounceMinutes": 10
+  },
+  "update": {
+    "day": "Sunday"
+  }
+}

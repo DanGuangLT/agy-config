@@ -1,0 +1,16 @@
+{
+  "ignored": [],
+  "language": "en",
+  "name": "_template",
+  "ownPlugins": [],
+  "ownSkills": [],
+  "projectMap": {
+    "tool": "graphify"
+  },
+  "sync": {
+    "debounceMinutes": 10
+  },
+  "update": {
+    "day": "Sunday"
+  }
+}
