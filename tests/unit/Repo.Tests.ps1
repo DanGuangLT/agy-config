@@ -15,6 +15,7 @@ Describe 'Update-ConfigRepo' {
     It 'does not abort a rebase it did not start' {
         $repo = Join-Path $TestDrive 'plain'
         New-Item -ItemType Directory -Force -Path (Join-Path $repo '.git') | Out-Null
+        Mock Invoke-Git { "0123456789abcdef0123456789abcdef01234567`trefs/heads/main" } -ParameterFilter { $GitArgs[0] -eq 'ls-remote' }
         Mock Invoke-Git { throw 'index.lock exists' } -ParameterFilter { $GitArgs[0] -eq 'pull' }
         Mock Invoke-Git { '' } -ParameterFilter { $GitArgs[0] -eq 'rev-parse' }
         Mock Invoke-External { @{ ExitCode = 0; StdOut = ''; StdErr = '' } }

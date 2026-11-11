@@ -17,7 +17,7 @@ jobs:
   update-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Create or update the weekly PR
         shell: bash
         env:
@@ -41,7 +41,7 @@ jobs:
           fi
           if [ -z "$existing" ]; then
             gh pr create --base main --head update/sources \
-              --title 'Weekly source updates / Cập nhật nguồn tuần này' \
+              --title 'Weekly source updates' \
               --body-file "$body_file" || manual_pr
           else
             gh pr edit "$existing" --body-file "$body_file" || manual_pr

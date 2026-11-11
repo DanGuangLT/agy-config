@@ -26,7 +26,7 @@
 
 ## Review Focus
 
-1. **Vietnamese or other non-ASCII text in `GEMINI.md`, profile files and user names** (`C:\Users\<tên người dùng>`). Must round-trip byte-for-byte through build, split, write and read under PowerShell 5.1. Tested in Task 2 (`round-trips Vietnamese text`) and Task 1 (`writes UTF-8 without BOM`).
+1. **Vietnamese or other non-ASCII text in `GEMINI.md`, profile files and user names** (`C:\Users\<non-ASCII user name>`). Must round-trip byte-for-byte through build, split, write and read under PowerShell 5.1. Tested in Task 2 (`round-trips Vietnamese text`) and Task 1 (`writes UTF-8 without BOM`).
 2. **Scheduled-task context, where `agy`, `git` or `python` are not on PATH.** Tools must be found at known install locations, or the run fails with a log line instead of hanging. Tested in Task 1 (`Resolve-Tool falls back to known locations`).
 3. **Offline at logon, or a fetch failing halfway through `apply`.** Nothing is uninstalled, `applied.json` is unchanged, the exit code is non-zero and the error is logged. Tested in Task 8 (`leaves state untouched when a source fails`).
 4. **Two syncs at once** (hook plus scheduled task). The second exits at once. A lock older than 30 minutes is treated as stale and taken over. Tested in Task 9 (`second run exits while lock held`, `takes over stale lock`).
@@ -38,7 +38,7 @@
 
 ```text
 .gitattributes .gitignore LICENSE THIRD_PARTY.md SECURITY.md
-README.md README.vi.md CONTRIBUTING.md CONTRIBUTING.vi.md
+README.md CONTRIBUTING.md
 core/GEMINI.core.md core/permissions.json core/sources.json core/sources.lock.json
 core/plugins/agy-self-config/{plugin.json,hooks.json,hooks/on-stop.ps1,skills/agy-self-config/SKILL.md,skills/agy-self-config/references/*.md}
 profiles/_template/{profile.json,GEMINI.profile.md,sources.json,sources.lock.json,permissions.json}
@@ -103,7 +103,7 @@ tests/unit/*.Tests.ps1 tests/integration/*.Tests.ps1 tests/fixtures/...
 
 - [ ] **Step 2: Write the failing tests** in `tests/unit/Core.Tests.ps1`. `BeforeAll` dot-sources `scripts/lib/All.ps1` and sets `$env:AGYCFG_HOME = Join-Path $TestDrive 'home'`.
   - `Get-AgyPaths honors AGYCFG_HOME`: `(Get-AgyPaths).SkillsDir | Should -Be (Join-Path $TestDrive 'home\.gemini\config\skills')`.
-  - `writes UTF-8 without BOM`: after `Write-TextFile $p "Trả lời bằng tiếng Việt"`, the first 3 bytes `Should -Not -Be @(0xEF,0xBB,0xBF)` and `Read-TextFile $p | Should -Be "Trả lời bằng tiếng Việt"`. Build the string from code points in the test file to keep it ASCII, e.g. `[char]0x1EA3`.
+  - `writes UTF-8 without BOM`: after `Write-TextFile $p <a Vietnamese sentence with diacritics>`, the first 3 bytes `Should -Not -Be @(0xEF,0xBB,0xBF)` and `Read-TextFile $p | Should -Be "Trả lời bằng tiếng Việt"`. Build the string from code points in the test file to keep it ASCII, e.g. `[char]0x1EA3`.
   - `Read-JsonFile returns default when missing` and `Read-JsonFile returns hashtables`: `(Read-JsonFile $p @{}).permissions.allow[0] | Should -Be 'command(git status)'`, and the type `Should -BeOfType [hashtable]`.
   - `Write-JsonFile round-trips non-ASCII`.
   - `Invoke-External returns exit code without throwing`: `(Invoke-External 'cmd.exe' @('/c','exit 3')).ExitCode | Should -Be 3`.
@@ -480,7 +480,7 @@ tests/unit/*.Tests.ps1 tests/integration/*.Tests.ps1 tests/fixtures/...
 - `update-pr.yml`:
   - Trigger `on: push: branches: [update/sources]`; permissions `contents: read`, `pull-requests: write`.
   - Step with `GH_TOKEN: ${{ github.token }}`: `gh pr list --head update/sources --state open --json number`.
-    - None open → `gh pr create --base main --head update/sources --title "Weekly source updates / Cập nhật nguồn tuần này" --body "$(git log -1 --format=%b)"`.
+    - None open → `gh pr create --base main --head update/sources --title "Weekly source updates" --body "$(git log -1 --format=%b)"`.
     - One open → `gh pr edit <n> --body ...`.
   - On failure, append the compare link to `$GITHUB_STEP_SUMMARY` and exit 0.
 - `CODEOWNERS`: `* @DanGuangLT`, plus explicit lines for `/scripts/`, `/core/plugins/`, `/core/sources*.json`, `/.github/`.
@@ -498,7 +498,7 @@ tests/unit/*.Tests.ps1 tests/integration/*.Tests.ps1 tests/fixtures/...
 ### Task 14: Documentation
 
 **Files:**
-- Create: `README.md`, `README.vi.md`, `CONTRIBUTING.md`, `CONTRIBUTING.vi.md`, `SECURITY.md`
+- Create: `README.md`, `CONTRIBUTING.md`, `SECURITY.md`
 
 **Content requirements** (both languages say the same thing; each README links to the other in its first line):
 
@@ -536,7 +536,7 @@ tests/unit/*.Tests.ps1 tests/integration/*.Tests.ps1 tests/fixtures/...
   - backup path printed;
   - `agy plugin list` shows `agy-self-config`, `engineering`, `design`, `anthropic-dev-skills`, `superpowers` and the 3 marketplace plugins;
   - `~/.gemini/GEMINI.md` contains both marker pairs and the Vietnamese rule.
-- [ ] **Step 3:** Orientation check: from `D:\Coding\LienThuan04`, run `agy --print "Mình vừa mở dự án này cho bạn. Bạn làm gì đầu tiên?" --mode plan`. Expected: a Vietnamese summary that mentions the project map step.
+- [ ] **Step 3:** Orientation check: from `D:\Coding\LienThuan04`, run `agy --print "I just opened this project for you. What do you do first?" --mode plan`. Expected: a summary in the profile language that mentions the project map step.
 - [ ] **Step 4:** With user confirmation, remove `~/.gemini/local-plugins` (made by hand on 2026-11-11, now replaced by packaged sources).
 - [ ] **Step 5:** With user confirmation, run `git push origin main`, then trigger a manual sync: `scripts/sync.ps1 -Force`. Expected: exit 0 and the GitHub Actions `validate` run green.
 - [ ] **Step 6:** Hand the user the README section 7 settings to switch on in the GitHub web UI. Confirm after they do it.

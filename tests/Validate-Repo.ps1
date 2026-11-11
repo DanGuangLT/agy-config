@@ -108,6 +108,20 @@ try {
         $problems.Add(('{0}:{1}: possible secret or personal data ({2})' -f $relativePaths[$hit.Path], $hit.Line, $hit.Rule))
     }
 
+    # The project is English-only: flag Vietnamese letters (tests build such text from code points).
+    $vietnamese = '[\u0102\u0103\u0110\u0111\u01a0\u01a1\u01af\u01b0\u1ea0-\u1ef9]'
+    foreach ($file in $files) {
+        $bytes = [IO.File]::ReadAllBytes($file.FullName)
+        if ($bytes -contains 0) { continue }
+        $lines = ([Text.Encoding]::UTF8.GetString($bytes) -replace "`r`n", "`n") -split "`n"
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match $vietnamese) {
+                $problems.Add(('{0}:{1}: Vietnamese text (the project is English-only)' -f $relativePaths[$file.FullName], ($i + 1)))
+                break
+            }
+        }
+    }
+
     foreach ($problem in $problems) { Write-Output $problem }
     if ($problems.Count -gt 0) { exit 1 }
     exit 0

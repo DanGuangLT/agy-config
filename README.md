@@ -1,5 +1,3 @@
-[Tiếng Việt](README.vi.md)
-
 # Pre-configured skills for the Antigravity agent
 
 A Windows setup for the Antigravity CLI (`agy`), with shared working rules, skills, and plugins.

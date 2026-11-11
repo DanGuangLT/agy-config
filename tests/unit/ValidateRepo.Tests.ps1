@@ -15,6 +15,14 @@ Describe 'Validate-Repo' {
         Write-TextFile (Join-Path $script:fixture 'THIRD_PARTY.md') '# Third-party sources'
     }
 
+    It 'flags Vietnamese text' {
+        # Built from code points so this test file itself stays ASCII.
+        Write-TextFile (Join-Path $script:fixture 'notes.md') ('Ti' + [char]0x1EBF + 'ng Vi' + [char]0x1EC7 + 't')
+        $r = Invoke-RepoValidation $script:fixture
+        $r.ExitCode | Should -Be 1
+        $r.StdOut | Should -Match 'notes\.md:1: Vietnamese text'
+    }
+
     It 'flags invalid json' {
         Write-TextFile (Join-Path $script:fixture 'broken.json') '{invalid'
         $r = Invoke-RepoValidation $script:fixture
@@ -143,7 +151,7 @@ Describe 'Validate-Repo' {
 
     It 'reports multiple problems as separate lines' {
         Write-TextFile (Join-Path $script:fixture 'bad.json') '{invalid'
-        Write-TextFile (Join-Path $script:fixture 'bad.ps1') ('# ' + [char]0x1EBF)
+        Write-TextFile (Join-Path $script:fixture 'bad.ps1') ('# ' + [char]0x00E9)
         $r = Invoke-RepoValidation $script:fixture
         $r.ExitCode | Should -Be 1
         @($r.StdOut.Trim() -split '\r?\n').Count | Should -Be 2

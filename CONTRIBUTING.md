@@ -1,5 +1,3 @@
-[Tiếng Việt](CONTRIBUTING.vi.md)
-
 # Contributing
 
 This repository configures the Antigravity CLI (`agy`) on Windows. Contributions arrive as pull requests to [the upstream repository](https://github.com/DanGuangLT/Pre-configured-skills-for-the-antigravity-agent). Start with [README.md](README.md) for installation and the owner/follower model.
