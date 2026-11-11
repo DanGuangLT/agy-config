@@ -1,0 +1,48 @@
+name: Weekly source update PR
+
+on:
+  push:
+    branches:
+      - update/sources
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: weekly-source-update-pr
+  cancel-in-progress: false
+
+jobs:
+  update-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create or update the weekly PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          body_file=$(mktemp)
+          trap 'rm -f "$body_file"' EXIT
+          git log -1 --format=%b > "$body_file"
+
+          manual_pr() {
+            printf 'Create pull request: [%s](%s)\n' \
+              'Review weekly source updates' \
+              "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...update/sources?expand=1" \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+
+          if ! existing=$(gh pr list --head update/sources --state open --json number --jq '.[0].number // empty'); then
+            manual_pr
+          fi
+          if [ -z "$existing" ]; then
+            gh pr create --base main --head update/sources \
+              --title 'Weekly source updates / Cập nhật nguồn tuần này' \
+              --body-file "$body_file" || manual_pr
+          else
+            gh pr edit "$existing" --body-file "$body_file" || manual_pr
+          fi

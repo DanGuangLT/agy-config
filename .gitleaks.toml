@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Intentional fake credentials in scanner tests"
+paths = [
+  '''(^|/)tests/'''
+]
