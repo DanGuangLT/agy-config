@@ -1,3 +1,29 @@
 {
-  "languageRule": "## Ngôn ngữ\n\nTrả lời, tóm tắt và đặt câu hỏi cho người dùng bằng tiếng Việt có dấu, câu ngắn, dễ hiểu. Tên file, lệnh và thuật ngữ kỹ thuật giữ nguyên, kèm giải thích tiếng Việt khi cần. Code, comment, commit message và nội dung PR viết bằng tiếng Anh."
+  "languageRule": "## Ngôn ngữ\n\nTrả lời, tóm tắt và đặt câu hỏi cho người dùng bằng tiếng Việt có dấu, câu ngắn, dễ hiểu. Tên file, lệnh và thuật ngữ kỹ thuật giữ nguyên, kèm giải thích tiếng Việt khi cần. Code, comment, commit message và nội dung PR viết bằng tiếng Anh.",
+  "msgApplyFailed": "Cài đặt chưa xong. Xem file log mới nhất trong {0}, sửa lỗi rồi chạy lại bước cài.",
+  "msgBackup": "Cấu hình agy cũ của bạn đã được sao lưu vào: {0}",
+  "msgBadProfileName": "'{0}' không phải tên profile hợp lệ. Chỉ dùng chữ thường, số, '-' hoặc '_'.",
+  "msgCancelled": "Đã huỷ. Không có gì bị thay đổi.",
+  "msgDone": "Xong. Đã cài profile '{0}' với vai trò {1}. Tác vụ tự chạy: {2}.",
+  "msgMissingTool": "Cần có {0} nhưng không tìm thấy. Hãy cài ({1}) rồi chạy lại bước cài.",
+  "msgNeedProfile": "Khi dùng -Yes thì phải có thêm -ProfileName <tên>.",
+  "msgNoBackup": "Không tìm thấy bản sao lưu '{0}' trong {1}.",
+  "msgOldGemini": "File GEMINI.md cũ của bạn nằm trong bản sao lưu. Muốn giữ quy tắc nào, hãy nhờ agy thêm vào profiles/{0}/GEMINI.profile.md.",
+  "msgPlan": "Bước này sẽ sao lưu cấu hình agy hiện tại, cài profile '{0}' với vai trò {1}, và đăng ký tác vụ tự chạy: {2}.",
+  "msgRestored": "Đã khôi phục bản sao lưu {0}.",
+  "msgUninstallHint": "Muốn gỡ sau này: powershell -ExecutionPolicy Bypass -File \"{0}\"",
+  "msgUninstalled": "Đã gỡ các tác vụ tự chạy và plugin agy-self-config. Các skill đã cài vẫn giữ nguyên.",
+  "msgWarnTool": "Lưu ý: không tìm thấy {0} ({1}). Một số tính năng cần nó.",
+  "promptConfirm": "Tiếp tục? (c/K)",
+  "promptLanguage": "agy nên trả lời bằng tiếng gì? (vi, en, ... Nhấn Enter để dùng ngôn ngữ của máy)",
+  "promptProfile": "Tên profile (đang có: {0}). Gõ tên có sẵn hoặc một tên mới",
+  "promptProjectMap": "Công cụ bản đồ dự án: nhấn Enter để dùng graphify, gõ tên skill khác bạn đang dùng, hoặc gõ none",
+  "promptUninstall": "Gỡ các tác vụ tự chạy và plugin agy-self-config? (c/K)",
+  "yesAnswers": [
+    "c",
+    "co",
+    "có",
+    "y",
+    "yes"
+  ]
 }
