@@ -2,7 +2,13 @@
 # Runs from the installed plugin folder, so it is self-contained (no repo libraries). ASCII-only.
 # Contract: read JSON on stdin (ignored), print a JSON object on stdout, exit 0.
 try {
-    if ([Console]::IsInputRedirected) { [void][Console]::In.ReadToEnd() }
+    # agy closes stdin after the payload; never wait more than 2 s in case a caller leaves it open.
+    # Console.In's async methods run synchronously on .NET Framework, so read the raw stream instead.
+    if ([Console]::IsInputRedirected) {
+        $stdin = [Console]::OpenStandardInput()
+        $buf = New-Object byte[] 65536
+        [void]$stdin.ReadAsync($buf, 0, $buf.Length).Wait(2000)
+    }
 } catch { }
 
 try {

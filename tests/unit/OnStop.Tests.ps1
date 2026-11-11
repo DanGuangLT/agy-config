@@ -25,6 +25,28 @@ Describe 'on-stop hook' {
         $LASTEXITCODE | Should -Be 0
         ($out -join '').Trim() | Should -Be '{}'
     }
+    It 'does not hang when stdin stays open' {
+        Set-Machine $null
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = 'powershell'
+        $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $script:hook + '"'
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardInput = $true
+        $psi.RedirectStandardOutput = $true
+        $psi.Environment['AGYCFG_HOME'] = $env:AGYCFG_HOME
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $out = $proc.StandardOutput.ReadToEndAsync()
+        $finished = $proc.WaitForExit(15000)
+        if (-not $finished) { $proc.Kill() }
+        $finished | Should -BeTrue
+        $out.Result.Trim() | Should -Be '{}'
+    }
+    It 'prints {} when given the hook payload on stdin (real process)' {
+        Set-Machine $null
+        $out = '{"hookEventName":"Stop","executionNum":1}' | & powershell -NoProfile -ExecutionPolicy Bypass -File $script:hook
+        $LASTEXITCODE | Should -Be 0
+        ($out -join '').Trim() | Should -Be '{}'
+    }
     It 'starts sync for owner' {
         $repo = New-FakeRepo
         Set-Machine @{ profile = 'p'; role = 'owner'; repoPath = $repo }
