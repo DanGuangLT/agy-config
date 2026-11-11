@@ -135,7 +135,7 @@ tests/unit/*.Tests.ps1 tests/integration/*.Tests.ps1 tests/fixtures/...
   - `core/GEMINI.core.md`: an **English** translation of the current `~/.gemini/GEMINI.md`, with sections Orientation, Working, Boundaries, Pausing, When another agent asks. Leave out the Vietnamese-language rule.
     - Add orientation step 2b, *Project map*: "If `Project map tool` is `graphify`: when `graphify-out/` exists read `graphify-out/GRAPH_REPORT.md` and answer file questions with `graphify query/path/explain`; when it does not, run `/graphify .`, then tell the user. For another tool, invoke that skill the same way."
     - Add one pointer line: "To change how you work, install or remove skills, back up, restore, update, or fix sync: use the `agy-self-config` skill."
-  - `profiles/_template/profile.json`: defaults above with `"name": "_template"`. `GEMINI.profile.md`: a `{{LANGUAGE_RULE}}` line. `sources.json`: `[]`. `sources.lock.json`: `{}`.
+  - `profiles/_template/profile.json`: defaults above with `"name": "_template"`. `GEMINI.profile.md`: a `{{LANGUAGE_RULE}}` line. `sources.json`: `[]`. `sources.lock.json`: `{}`. `permissions.json`: `[]`.
   - `profiles/lianharman/profile.json`: `language: "vi"`, `projectMap.tool: "graphify"`. `GEMINI.profile.md`: the Vietnamese language rule paragraph from the current `~/.gemini/GEMINI.md`, verbatim.
 - [ ] **Step 2: Write the failing tests**:
   - `Build-GeminiMd places markers in order` (index of core:start < core:end < profile:start < profile:end).
