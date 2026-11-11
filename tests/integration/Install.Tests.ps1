@@ -98,19 +98,170 @@ Describe 'Invoke-Install' {
         Invoke-Install -RepoRoot $repo -ProfileName autouser -Yes | Should -Be 0
         (Get-Profile $repo 'autouser').language | Should -Be 'auto'
     }
-    It 'install is idempotent' {
+    It 'install is idempotent with -Reinstall' {
         $repo = New-InstallFixture
         Invoke-Install -RepoRoot $repo -ProfileName again -Language en -ProjectMapTool graphify -Yes | Should -Be 0
         $before = (Get-ChildItem (Join-Path $repo 'profiles')).Count
-        Invoke-Install -RepoRoot $repo -ProfileName again -Yes | Should -Be 0
+        Invoke-Install -RepoRoot $repo -Reinstall -Yes | Should -Be 0
         (Get-ChildItem (Join-Path $repo 'profiles')).Count | Should -Be $before
+        (Get-MachineState).profile | Should -Be 'again'
         Should -Invoke Unregister-AgyTasks -Times 2 -Exactly
+    }
+    It 'a second run on a set-up machine only reports the setup' {
+        $repo = New-InstallFixture
+        Invoke-Install -RepoRoot $repo -ProfileName lianharman -Yes | Should -Be 0
+        Set-AppliedState @{ sources = @{} }
+        $en = Read-JsonFile (Join-Path $repo 'scripts\i18n\en.json') @{}
+        Mock Install-LocalPlugin { $true }
+        Invoke-Install -RepoRoot $repo | Should -Be 0
+        Should -Invoke Invoke-Apply -Times 1 -Exactly
+        Should -Invoke Read-Host -Times 0 -Exactly
+        # apply is mocked, so the plugin is missing: the check reinstalls it.
+        Should -Invoke Install-LocalPlugin -Times 1 -Exactly
+        Should -Invoke Write-Host -ParameterFilter { $Object -eq ($en.msgAlreadyInstalled -f 'lianharman', 'owner', $en.msgBackupOrigin) }
+    }
+    It 'adopts this folder when the recorded clone was moved away' {
+        $repo = New-InstallFixture
+        Set-MachineState @{ profile = 'lianharman'; role = 'owner'; repoPath = (Join-Path $TestDrive 'gone-folder') }
+        Set-AppliedState @{ sources = @{} }
+        Mock Install-LocalPlugin { $true }
+        Invoke-Install -RepoRoot $repo | Should -Be 0
+        (Get-MachineState).repoPath | Should -Be $repo
+        Should -Invoke Invoke-Apply -Times 0 -Exactly
+    }
+    It 'keeps another existing clone unless -Reinstall is given' {
+        $other = New-InstallFixture
+        $repo = Join-Path $TestDrive ('r' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Force -Path $repo | Out-Null
+        foreach ($d in 'core', 'profiles', 'scripts') { Copy-Item -Recurse (Join-Path $script:src $d) (Join-Path $repo $d) }
+        Set-MachineState @{ profile = 'lianharman'; role = 'owner'; repoPath = $other }
+        Invoke-Install -RepoRoot $repo | Should -Be 0
+        (Get-MachineState).repoPath | Should -Be $other
+        Invoke-Install -RepoRoot $repo -Reinstall -Yes | Should -Be 0
+        (Get-MachineState).repoPath | Should -Be $repo
+    }
+    It 'finishes an install that stopped before anything was applied' {
+        $repo = New-InstallFixture
+        Set-MachineState @{ profile = 'lianharman'; role = 'owner'; repoPath = $repo }
+        Invoke-Install -RepoRoot $repo | Should -Be 0
+        Should -Invoke Invoke-Apply -Times 1 -Exactly
+    }
+    It 'tells where the agy folder is' {
+        $repo = New-InstallFixture
+        $en = Read-JsonFile (Join-Path $repo 'scripts\i18n\en.json') @{}
+        Invoke-Install -RepoRoot $repo -ProfileName lianharman -Yes | Should -Be 0
+        Should -Invoke Write-Host -ParameterFilter { $Object -eq ($en.msgAgyFolder -f (Get-AgyPaths).AgyDir) }
     }
     It 'returns 1 when apply fails, keeping what was installed' {
         $repo = New-InstallFixture
         Mock Invoke-Apply { 1 }
         Invoke-Install -RepoRoot $repo -ProfileName lianharman -Yes | Should -Be 1
         (Get-MachineState).profile | Should -Be 'lianharman'
+    }
+}
+
+Describe 'Invoke-Install with a personal backup repository' {
+    BeforeAll {
+        $script:realGit = Resolve-Tool git
+        function New-BackupRepo([hashtable]$Seed) {
+            $origin = Join-Path $TestDrive ('backup' + [guid]::NewGuid().ToString('N') + '.git')
+            (Invoke-External 'git' @('init', '-q', '--bare', '-b', 'main', $origin) $TestDrive).ExitCode | Should -Be 0
+            if ($Seed) {
+                $dir = Join-Path $TestDrive ('seed' + [guid]::NewGuid().ToString('N'))
+                (Invoke-External 'git' @('clone', '-q', $origin, $dir) $TestDrive).ExitCode | Should -Be 0
+                Copy-Item -Recurse -Force (Join-Path $script:src 'profiles\_template\*') $dir
+                $data = Read-JsonFile (Join-Path $dir 'profile.json') @{}
+                foreach ($k in $Seed.Keys) { $data[$k] = $Seed[$k] }
+                Write-JsonFile (Join-Path $dir 'profile.json') $data
+                foreach ($a in @(, @('add', '-A')) + @(, @('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'seed')) + @(, @('push', '-q', 'origin', 'main'))) {
+                    (Invoke-External 'git' $a $dir).ExitCode | Should -Be 0
+                }
+            }
+            return $origin
+        }
+        function Get-BackupFile([string]$Origin, [string]$Path) {
+            $r = Invoke-External 'git' @('show', ('main:' + $Path)) $Origin
+            if ($r.ExitCode -ne 0) { return $null }
+            return $r.StdOut
+        }
+    }
+    BeforeEach {
+        Mock Resolve-Tool { if ($Name -eq 'git') { $script:realGit } else { $Name + '.exe' } }
+        # The shared clone is a follower; the personal clone (a local bare repo) is really pushed to.
+        Mock Test-PushAccess { $true }
+        Mock Test-PushAccess { $false } -ParameterFilter { $RepoRoot -notlike '*.agy-config-personal*' }
+        Mock Invoke-Apply { 0 }
+        Mock Unregister-AgyTasks { }
+        Mock Get-AgyPluginList { @() }
+        Mock Get-GitHeadSha { 'f' * 40 }
+        Mock Read-Host { 'y' }
+        Mock Write-Host { }
+    }
+
+    It 'creates the profile at the root of an empty backup repository and pushes it' {
+        $repo = New-InstallFixture
+        $origin = New-BackupRepo
+        Invoke-Install -RepoRoot $repo -BackupRepo $origin -Language vi -ProjectMapTool none -Yes | Should -Be 0
+        $m = Get-MachineState
+        $m.role | Should -Be 'follower'
+        $m.backupRepo | Should -Be $origin
+        $m.profileRoot | Should -Be (Get-AgyPaths).PersonalDir
+        $m.profile | Should -Be (Get-RepoOwnerName $origin)
+        Test-Path (Join-Path $repo ('profiles\' + $m.profile)) | Should -BeFalse
+        (Get-BackupFile $origin 'profile.json') | Should -Match '"language": "vi"'
+        (Get-BackupFile $origin 'README.md') | Should -Match 'agy configuration backup'
+        (Get-BackupFile $origin 'GEMINI.profile.md') | Should -Match 'Vietnamese'
+    }
+    It 'asks a follower for the backup repository' {
+        $repo = New-InstallFixture
+        $origin = New-BackupRepo
+        $en = Read-JsonFile (Join-Path $repo 'scripts\i18n\en.json') @{}
+        Mock Read-Host { $origin } -ParameterFilter { $Prompt -eq $en.promptBackupRepo }
+        Mock Read-Host { '' } -ParameterFilter { $Prompt -eq $en.promptLanguage -or $Prompt -eq $en.promptProjectMap }
+        Invoke-Install -RepoRoot $repo | Should -Be 0
+        (Get-MachineState).backupRepo | Should -Be $origin
+        (Get-BackupFile $origin 'profile.json') | Should -Match '"language": "auto"'
+    }
+    It 'Enter skips the backup repository' {
+        $repo = New-InstallFixture
+        $en = Read-JsonFile (Join-Path $repo 'scripts\i18n\en.json') @{}
+        Mock Read-Host { '' } -ParameterFilter { $Prompt -eq $en.promptBackupRepo }
+        Mock Read-Host { 'solo' } -ParameterFilter { $Prompt -like 'Profile name*' }
+        Invoke-Install -RepoRoot $repo | Should -Be 0
+        (Get-MachineState).profileRoot | Should -BeNullOrEmpty
+        Test-Path (Join-Path $repo 'profiles\solo\profile.json') | Should -BeTrue
+    }
+    It 'does not ask an owner for a backup repository' {
+        $repo = New-InstallFixture
+        $en = Read-JsonFile (Join-Path $repo 'scripts\i18n\en.json') @{}
+        Mock Test-PushAccess { $true } -ParameterFilter { $RepoRoot -notlike '*.agy-config-personal*' }
+        Invoke-Install -RepoRoot $repo -ProfileName lianharman | Should -Be 0
+        Should -Invoke Read-Host -Times 0 -Exactly -ParameterFilter { $Prompt -eq $en.promptBackupRepo }
+    }
+    It 'restores a saved configuration without asking the profile questions' {
+        $repo = New-InstallFixture
+        $origin = New-BackupRepo @{ name = 'alice'; language = 'ja'; projectMap = @{ tool = 'none' } }
+        $en = Read-JsonFile (Join-Path $repo 'scripts\i18n\en.json') @{}
+        Invoke-Install -RepoRoot $repo -BackupRepo $origin | Should -Be 0
+        Should -Invoke Read-Host -Times 0 -Exactly -ParameterFilter { $Prompt -eq $en.promptLanguage }
+        $m = Get-MachineState
+        $m.profile | Should -Be 'alice'
+        (Get-Profile $repo $m.profile $m.profileRoot).language | Should -Be 'ja'
+    }
+    It 'stops with a clear message when it cannot push to the backup repository' {
+        $repo = New-InstallFixture
+        $origin = New-BackupRepo
+        Mock Test-PushAccess { $false }
+        Invoke-Install -RepoRoot $repo -BackupRepo $origin -Yes | Should -Be 1
+        (Get-MachineState).profile | Should -BeNullOrEmpty
+        Should -Invoke Invoke-Apply -Times 0 -Exactly
+    }
+    It 'keeps the backup repository on -Reinstall' {
+        $repo = New-InstallFixture
+        $origin = New-BackupRepo
+        Invoke-Install -RepoRoot $repo -BackupRepo $origin -Yes | Should -Be 0
+        Invoke-Install -RepoRoot $repo -Reinstall -Yes | Should -Be 0
+        (Get-MachineState).backupRepo | Should -Be $origin
     }
 }
 
@@ -126,6 +277,12 @@ Describe 'Invoke-Uninstall' {
         Should -Invoke Unregister-AgyTasks -Times 1 -Exactly
         Should -Invoke Uninstall-AgyPlugin -Times 1 -Exactly -ParameterFilter { $Name -eq 'agy-self-config' }
         Test-Path (Join-Path (Get-AgyPaths).SkillsDir 'old-skill') | Should -BeTrue
+    }
+    It 'forgets the setup so the next install runs in full' {
+        $repo = New-InstallFixture
+        Set-MachineState @{ profile = 'lianharman'; role = 'owner'; repoPath = $repo }
+        Invoke-Uninstall -Yes | Should -Be 0
+        (Get-MachineState).profile | Should -BeNullOrEmpty
     }
     It 'restores GEMINI.md and settings from a backup' {
         $repo = New-InstallFixture

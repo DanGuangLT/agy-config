@@ -60,6 +60,71 @@ AfterAll {
     Get-ChildItem -LiteralPath $TestDrive -Recurse -Force -File -ErrorAction SilentlyContinue | ForEach-Object { $_.IsReadOnly = $false }
 }
 
+Describe 'Invoke-Sync with a personal backup repository' {
+    BeforeAll {
+        # A follower of the shared origin whose profile lives in its own backup repository.
+        function New-PersonalMachine($World, [string]$Name) {
+            $m = New-Machine $World $Name 'follower'
+            $backup = Join-Path $World.Root ('backup-' + $Name + '.git')
+            Invoke-TestGit $World.Root @('init', '-q', '--bare', '-b', 'main', $backup) | Out-Null
+            $dir = (Get-AgyPaths).PersonalDir
+            (Initialize-PersonalRepo $backup $dir).Ok | Should -BeTrue
+            New-ProfileFromTemplate $m.Repo $Name 'auto' 'graphify' $dir | Out-Null
+            Set-MachineState @{ profile = $Name; role = 'follower'; repoPath = $m.Repo; backupRepo = $backup; profileRoot = $dir }
+            $prof = Get-Profile $m.Repo $Name $dir
+            Write-TextFile (Get-AgyPaths).GeminiMd (Build-GeminiMd (Read-TextFile (Join-Path $m.Repo 'core\GEMINI.core.md')) $prof.GeminiProfileText 'graphify')
+            Set-AppliedState @{ sources = @{}; sourceDefs = @{}; ownSkills = @(); ownPlugins = @(); permissions = $script:corePerms; mcpServers = @(); geminiManaged = $true
+                geminiProfileText = $prof.GeminiProfileText; geminiCoreText = (Read-TextFile (Join-Path $m.Repo 'core\GEMINI.core.md')).TrimEnd("`r", "`n") }
+            $m.Backup = $backup
+            $m.Dir = $dir
+            $m
+        }
+        function Get-BackupFile([string]$Origin, [string]$Path) {
+            $r = Invoke-External 'git' @('show', ('main:' + $Path)) $Origin
+            if ($r.ExitCode -ne 0) { return $null }
+            $r.StdOut
+        }
+    }
+    BeforeEach {
+        Mock Get-AgyPluginList { @() }
+        Mock Get-GitHeadSha { 'f' * 40 }
+    }
+
+    It 'pushes the profile to the backup repository and leaves the shared clone alone' {
+        $w = New-SyncWorld
+        $p = New-PersonalMachine $w 'pat'
+        $sharedBefore = Invoke-TestGit $p.Repo @('rev-parse', 'HEAD')
+        Add-MachinePermission 'command(npm test)'
+        Set-ProfileRegion "## Language`n`nAnswer in English.`n`nPat's rule."
+        Invoke-Sync -RepoRoot $p.Repo -Force | Should -Be 0
+        Get-BackupFile $p.Backup 'permissions.json' | Should -Match 'command\(npm test\)'
+        Get-BackupFile $p.Backup 'GEMINI.profile.md' | Should -Match "Pat's rule\."
+        Invoke-TestGit $p.Repo @('rev-parse', 'HEAD') | Should -Be $sharedBefore
+        Invoke-TestGit $p.Repo @('status', '--porcelain') | Should -BeNullOrEmpty
+    }
+    It 'never captures core text into the shared clone' {
+        $w = New-SyncWorld
+        $p = New-PersonalMachine $w 'core-test'
+        $gm = (Get-AgyPaths).GeminiMd
+        $s = Split-GeminiMd (Read-TextFile $gm)
+        Write-TextFile $gm (Build-GeminiMd ($s.Core + "`n`nLocal core edit.") $s.Profile 'graphify')
+        Invoke-Sync -RepoRoot $p.Repo -Force | Should -Be 0
+        Read-TextFile (Join-Path $p.Repo 'core\GEMINI.core.md') | Should -Not -Match 'Local core edit'
+    }
+    It 'a second machine with the same backup repository gets the first one''s changes' {
+        $w = New-SyncWorld
+        $a = New-PersonalMachine $w 'sam'
+        Add-MachinePermission 'command(npm test)'
+        Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 0
+        $b = New-Machine $w 'sam-2' 'follower'
+        $dir = (Get-AgyPaths).PersonalDir
+        $r = Initialize-PersonalRepo $a.Backup $dir
+        $r.Ok | Should -BeTrue
+        $r.HasProfile | Should -BeTrue
+        (Get-Profile $b.Repo 'sam' $dir).Permissions | Should -Contain 'command(npm test)'
+    }
+}
+
 Describe 'Invoke-Sync' {
     BeforeEach {
         Mock Get-AgyPluginList { @() }

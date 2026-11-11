@@ -2,7 +2,7 @@
 
 Use this when the user is a follower, or works from a fork, and wants a change to go into the shared repo `DanGuangLT/agy-config`.
 
-1. Make sure the change belongs in `core/`. Personal preferences stay in `profiles/<name>/`.
+1. Make sure the change belongs in `<repoPath>/core/`. Personal preferences stay in `<profileDir>`: `profileRoot` from `machine.json` when set, otherwise `<repoPath>/profiles/<profile>/`. The personal clone holds these files at its root and backs them up to `backupRepo`.
 2. In `<repoPath>`, create a branch: `git checkout -b <short-topic>`.
 3. Make the change:
    - New source: add the entry to `core/sources.json` (type, repository and `provides`), plus a row in `THIRD_PARTY.md` with its license.

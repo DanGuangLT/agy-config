@@ -34,4 +34,9 @@ Describe 'wrapper scripts run without -RepoRoot (as the hook calls them)' {
         $r.StdErr | Should -Not -Match 'Cannot bind argument'
         $r.Logs | Should -Match $Expect
     }
+    It 'follow.ps1 reaches its main function' {
+        $r = Invoke-Wrapper 'follow.ps1'
+        $r.ExitCode | Should -Be 1
+        $r.StdErr | Should -Match 'not set up yet'
+    }
 }

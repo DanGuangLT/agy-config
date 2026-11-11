@@ -17,9 +17,15 @@ function Invoke-Update {
     if ($machine.role -ne 'owner') { & $log 'not an owner machine; updates arrive through main'; return 0 }
     if (-not (Enter-RunLock 'update')) { & $log 'another update is running; skipped'; return 0 }
     try {
-        $prof = Get-Profile $RepoRoot $machine.profile
+        $loc = Get-ProfileLocation $RepoRoot $machine
+        $prof = Get-Profile $RepoRoot $machine.profile $loc.Dir
         $pending = Get-PendingLock
         $sources = @(Get-SourceList $RepoRoot $prof)
+        if ($loc.Personal) {
+            # Sources listed only by a personal backup repository stay at their captured version (spec 2026-11-12).
+            $ownIds = @($prof.Sources | Where-Object { $_ } | ForEach-Object { $_.id })
+            $sources = @($sources | Where-Object { $ownIds -notcontains $_.id })
+        }
         $lock = Get-EffectiveLock $RepoRoot $prof $pending
         $rows = @()
         $newVersions = @{}
@@ -90,7 +96,7 @@ function Invoke-Update {
                 if ($profIds -contains $k) { $profLock[$k] = $merged[$k] } else { $coreLock[$k] = $merged[$k] }
             }
             Write-JsonFile $coreLockPath $coreLock
-            if (Test-Path (Split-Path -Parent $profLockPath)) { Write-JsonFile $profLockPath $profLock }
+            if (-not $loc.Personal -and (Test-Path (Split-Path -Parent $profLockPath))) { Write-JsonFile $profLockPath $profLock }
             $msgFile = Join-Path (Get-AgyPaths).StateDir 'update-commit-msg.txt'
             Write-TextFile $msgFile (("chore(sources): weekly update {0}`n`n" -f (Get-Date -Format 'yyyy-MM-dd')) + ($table -join "`n") + "`n")
             if (@(Find-Secrets @($msgFile)).Count -gt 0) {

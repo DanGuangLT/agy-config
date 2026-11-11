@@ -48,22 +48,35 @@ function Invoke-Apply {
     $machine = Get-MachineState
     if (-not $machine.profile) { & $log 'no profile configured for this machine; run scripts/install.ps1' 'ERROR'; return 1 }
     $isOwner = $machine.role -eq 'owner'
+    $loc = Get-ProfileLocation $RepoRoot $machine
 
     if (-not (Enter-RunLock 'config' -WaitSeconds $LockWaitSeconds)) { & $log 'another apply/sync is still running; nothing changed' 'ERROR'; return 1 }
     try {
         # 0. Save local edits into the repo working tree before regenerating anything.
         if (-not $SkipCapture -and (Get-Command Invoke-Sync -ErrorAction SilentlyContinue)) {
-            $cap = if ($isOwner) { Invoke-Sync -RepoRoot $RepoRoot -Force } else { Invoke-Sync -RepoRoot $RepoRoot -CaptureOnly }
+            # Machines with somewhere to publish (owner, or a personal backup repository) back up first.
+            $cap = if ($isOwner -or $loc.Personal) { Invoke-Sync -RepoRoot $RepoRoot -Force } else { Invoke-Sync -RepoRoot $RepoRoot -CaptureOnly }
             if ($cap -eq 5) { & $log 'the config repo is in the middle of a merge, rebase or branch switch; nothing changed' 'ERROR'; return 1 }
         }
 
         # 1. Pull. Offline or conflicted: change nothing.
         if (-not $SkipPull) {
-            $pull = Update-ConfigRepo $RepoRoot
-            if (-not $pull.Ok) { & $log "pull failed, nothing changed: $($pull.Error)" 'ERROR'; return 1 }
+            if ($loc.Personal) {
+                $pull = Update-ConfigRepo $loc.GitRoot
+                if (-not $pull.Ok) { & $log "pull of the backup repository failed, nothing changed: $($pull.Error)" 'ERROR'; return 1 }
+            }
+            # A user who stopped following the shared repository (follow.ps1 -Stop) gets nothing new from it.
+            if (Test-Following (Get-Profile $RepoRoot $machine.profile $loc.Dir)) {
+                $pull = Update-ConfigRepo $RepoRoot
+                if (-not $pull.Ok) { & $log "pull failed, nothing changed: $($pull.Error)" 'ERROR'; return 1 }
+            } else {
+                & $log 'not following the shared repository (follow.ps1 -Resume to follow again); its pull was skipped'
+            }
         }
 
-        $prof = Get-Profile $RepoRoot $machine.profile
+        $prof = Get-Profile $RepoRoot $machine.profile $loc.Dir
+        # Sources the user's own backup repository lists may be looked up without a lock (it is theirs).
+        $ownIds = if ($loc.Personal) { @($prof.Sources | Where-Object { $_ } | ForEach-Object { $_.id }) } else { @() }
         $pending = if ($isOwner) { Get-PendingLock } else { $null }
         $sources = @(Get-SourceList $RepoRoot $prof)
         $lock = Get-EffectiveLock $RepoRoot $prof $pending
@@ -78,7 +91,7 @@ function Invoke-Apply {
             $newDefs[$s.id] = $s
             $target = $lock[$s.id]
             if (-not $target) {
-                if (-not $isOwner) { $failures += "$($s.id): no locked version in the repo (an owner machine must lock it first)"; continue }
+                if (-not $isOwner -and $ownIds -notcontains $s.id) { $failures += "$($s.id): no locked version in the repo (an owner machine must lock it first)"; continue }
                 try { $target = Get-LatestVersion $s } catch { $failures += "$($s.id): no locked version and latest lookup failed: $($_.Exception.Message)"; continue }
             }
             if ($applied.sources[$s.id] -eq $target -and (Test-Source $s).Ok) { $newSources[$s.id] = $target; continue }
@@ -127,11 +140,11 @@ function Invoke-Apply {
         foreach ($n in @($applied.ownPlugins)) { if ($n -and $ownPlugins -notcontains $n) { Uninstall-AgyPlugin $n } }
 
         # 4. GEMINI.md
-        $coreText = (Read-TextFile (Join-Path $RepoRoot 'core\GEMINI.core.md')).TrimEnd("`r", "`n")
+        $coreText = (Read-TextFile (Get-SharedFile $RepoRoot $prof 'GEMINI.core.md')).TrimEnd("`r", "`n")
         Write-TextFile $paths.GeminiMd (Build-GeminiMd $coreText $prof.GeminiProfileText $prof.projectMap.tool)
 
         # 5. Permissions: add ours, drop the ones we added earlier that the repo no longer lists.
-        $wanted = @(@(Read-JsonFile (Join-Path $RepoRoot 'core\permissions.json') @()) + @($prof.Permissions) | Where-Object { $_ } | Sort-Object -Unique)
+        $wanted = @(@(Read-JsonFile (Get-SharedFile $RepoRoot $prof 'permissions.json') @()) + @($prof.Permissions) | Where-Object { $_ } | Sort-Object -Unique)
         Merge-Permissions $paths.CliSettings $wanted | Out-Null
         $dropped = @(@($applied.permissions) | Where-Object { $_ -and $wanted -notcontains $_ })
         if ($dropped.Count -gt 0) { Remove-Permissions $paths.CliSettings $dropped }

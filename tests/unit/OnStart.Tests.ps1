@@ -66,6 +66,61 @@ Describe 'on-start hook' {
         ((& $script:hook) -join '').Trim() | Should -Be '{}'
         Should -Invoke Start-Process -Times 0 -Exactly
     }
+    It 'logs and injects a warning when the maintenance script is missing' {
+        $repo = Join-Path $TestDrive 'moved repo'
+        Set-Machine @{ profile = 'p'; role = 'follower'; repoPath = $repo }
+        Mock Start-Process { }
+        $out = ((& $script:hook) -join '') | ConvertFrom-Json
+        Should -Invoke Start-Process -Times 0 -Exactly
+        $dir = Join-Path $env:AGYCFG_HOME '.agy-config-state'
+        $log = Join-Path $dir ('logs\hook-' + (Get-Date -Format 'yyyyMMdd') + '.log')
+        Test-Path $log | Should -BeTrue
+        $lines = @(Get-Content -LiteralPath $log -Encoding UTF8)
+        $lines.Count | Should -Be 1
+        $lines[0] | Should -Match '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[WARN\] '
+        $lines[0] | Should -Match 'repo folder was not found'
+        $lines[0] | Should -Match ([regex]::Escape($repo))
+        $lines[0] | Should -Match ([regex]::Escape('scripts\install.ps1'))
+        $lines[0] | Should -Match "clone's new folder"
+        @($out.injectSteps).Count | Should -Be 1
+        $out.injectSteps[0].systemMessage.systemMessage | Should -Be ($lines[0] -replace '^.*? \[WARN\] ', '')
+        $stamp = [datetime]([IO.File]::ReadAllText((Join-Path $dir 'weekly-attempt.last'), [Text.Encoding]::UTF8))
+        ((Get-Date) - $stamp).TotalMinutes | Should -BeLessThan 1
+        Test-Path (Join-Path $dir 'weekly.last') | Should -BeFalse
+    }
+    It 'does not log a missing maintenance script when the week is not due' {
+        Set-Machine @{ profile = 'p'; role = 'owner'; repoPath = (Join-Path $TestDrive 'missing repo') } (Get-Ago 3)
+        Mock Start-Process { }
+        ((& $script:hook) -join '').Trim() | Should -Be '{}'
+        Should -Invoke Start-Process -Times 0 -Exactly
+        $dir = Join-Path $env:AGYCFG_HOME '.agy-config-state'
+        Test-Path (Join-Path $dir 'logs') | Should -BeFalse
+        Test-Path (Join-Path $dir 'weekly-attempt.last') | Should -BeFalse
+    }
+    It 'logs a missing maintenance script at most once a day' {
+        Set-Machine @{ profile = 'p'; role = 'owner'; repoPath = (Join-Path $TestDrive 'missing repo') } (Get-Ago 9) (Get-Ago 1.1)
+        Mock Start-Process { }
+        & $script:hook | Out-Null
+        $dir = Join-Path $env:AGYCFG_HOME '.agy-config-state'
+        $attempt = Join-Path $dir 'weekly-attempt.last'
+        $firstStamp = [IO.File]::ReadAllText($attempt, [Text.Encoding]::UTF8)
+        ((& $script:hook) -join '').Trim() | Should -Be '{}'
+        [IO.File]::ReadAllText($attempt, [Text.Encoding]::UTF8) | Should -Be $firstStamp
+        $logs = @(Get-ChildItem -LiteralPath (Join-Path $dir 'logs') -Filter 'hook-*.log' | Get-Content -Encoding UTF8)
+        $logs.Count | Should -Be 1
+        [IO.File]::WriteAllText($attempt, (Get-Ago 1.1), $script:utf8)
+        & $script:hook | Out-Null
+        $logs = @(Get-ChildItem -LiteralPath (Join-Path $dir 'logs') -Filter 'hook-*.log' | Get-Content -Encoding UTF8)
+        $logs.Count | Should -Be 2
+        Should -Invoke Start-Process -Times 0 -Exactly
+    }
+    It 'prints a JSON warning and exits 0 for a moved repo (real process)' {
+        Set-Machine @{ profile = 'p'; role = 'follower'; repoPath = (Join-Path $TestDrive 'moved clone') }
+        $out = '{"hookEventName":"SessionStart"}' | & powershell -NoProfile -ExecutionPolicy Bypass -File $script:hook
+        $LASTEXITCODE | Should -Be 0
+        $json = ($out -join '') | ConvertFrom-Json
+        $json.injectSteps[0].systemMessage.systemMessage | Should -Match 'repo folder was not found'
+    }
     It 'retries a failed week at most once a day' {
         $repo = New-FakeRepo
         Set-Machine @{ profile = 'p'; role = 'owner'; repoPath = $repo } (Get-Ago 9) (Get-Ago 0.2)

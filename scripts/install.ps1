@@ -1,5 +1,6 @@
-# Install this agy configuration on this machine. Safe to run again.
-#   From a clone:  powershell -ExecutionPolicy Bypass -File scripts\install.ps1 [-ProfileName <name>]
+# Install this agy configuration on this machine. Run it once; running it again only shows the setup
+# (and adopts this folder when the clone was moved). -Reinstall runs the full setup again.
+#   From a clone:  powershell -ExecutionPolicy Bypass -File scripts\install.ps1 [-BackupRepo <url|none>] [-ProfileName <name>]
 #   One line:      irm https://raw.githubusercontent.com/DanGuangLT/agy-config/main/scripts/install.ps1 | iex
 #                  (clones the repo to ~/.agy-config first; read the script before running it)
 [CmdletBinding()]
@@ -7,6 +8,8 @@ param(
     [string]$ProfileName,
     [string]$Language,
     [string]$ProjectMapTool,
+    [string]$BackupRepo,
+    [switch]$Reinstall,
     [switch]$Yes,
     [string]$RepoPath,
     [string]$RepoUrl = 'https://github.com/DanGuangLT/agy-config.git'
@@ -33,7 +36,7 @@ $agyInstallCode = & {
     $lib = Join-Path $root 'scripts\lib\All.ps1'
     if (-not (Test-Path $lib)) { Write-Host "No agy config repo found at $root."; return 1 }
     . $lib
-    return (Invoke-Install -RepoRoot $root -ProfileName $ProfileName -Language $Language -ProjectMapTool $ProjectMapTool -Yes:$Yes)
+    return (Invoke-Install -RepoRoot $root -ProfileName $ProfileName -Language $Language -ProjectMapTool $ProjectMapTool -BackupRepo $BackupRepo -Reinstall:$Reinstall -Yes:$Yes)
 }
 
 # Exit with a code when run as a file; when run through iex, only return so the user's window stays open.

@@ -123,6 +123,27 @@ Describe 'Invoke-Apply' {
         Should -Invoke Install-Source -Times 0 -Exactly -ParameterFilter { $Source.id -eq 'unlocked' }
         (Get-Content (Join-Path (Get-AgyPaths).LogDir ('apply-' + (Get-Date -Format 'yyyyMMdd') + '.log')) -Raw) | Should -Match 'unlocked'
     }
+    It 'reads the profile from the personal backup clone and pulls it' {
+        $repo = New-ApplyFixture
+        $dir = (Get-AgyPaths).PersonalDir
+        New-ProfileFromTemplate $repo 'pat' 'vi' 'none' $dir | Out-Null
+        Set-MachineState @{ profile = 'pat'; role = 'follower'; repoPath = $repo; backupRepo = 'https://example.com/pat/backup.git'; profileRoot = $dir }
+        Invoke-Apply -RepoRoot $repo -SkipCapture | Should -Be 0
+        Should -Invoke Update-ConfigRepo -ParameterFilter { $RepoRoot -eq $dir }
+        $text = Read-TextFile (Get-AgyPaths).GeminiMd
+        $text | Should -Match 'Vietnamese'
+        $text | Should -Not -Match 'Project map tool: graphify'
+    }
+    It 'a follower with a backup repository installs its own unlocked source at the latest version' {
+        $repo = New-ApplyFixture
+        $dir = (Get-AgyPaths).PersonalDir
+        New-ProfileFromTemplate $repo 'pat' 'auto' 'graphify' $dir | Out-Null
+        Write-JsonFile (Join-Path $dir 'sources.json') @(@{ id = 'mine'; type = 'git-plugin'; repo = 'https://example.com/mine'; plugin = 'mine'; provides = @('mine') })
+        Set-MachineState @{ profile = 'pat'; role = 'follower'; repoPath = $repo; backupRepo = 'https://example.com/pat/backup.git'; profileRoot = $dir }
+        Mock Get-LatestVersion { 'latest-sha' }
+        Invoke-Apply -RepoRoot $repo -SkipCapture | Should -Be 0
+        Should -Invoke Install-Source -Times 1 -Exactly -ParameterFilter { $Source.id -eq 'mine' -and $Version -eq 'latest-sha' }
+    }
     It 'owner installs the latest version of a source that has no locked version' {
         $repo = New-ApplyFixture -Role owner
         $sj = Join-Path $repo 'core\sources.json'
