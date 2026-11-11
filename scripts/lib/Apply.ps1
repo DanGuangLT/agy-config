@@ -3,9 +3,13 @@
 # everything else is still applied.
 
 function Install-LocalPlugin([string]$Dir) {
+    # `agy plugin install` fails while agy has the plugin open (weekly maintenance runs while agy is
+    # running), so fall back to copying the folder in place; agy discovers plugin folders by plugin.json.
     $agy = Resolve-Tool agy
-    if (-not $agy) { return $false }
-    (Invoke-External $agy @('plugin', 'install', $Dir)).ExitCode -eq 0
+    if ($agy -and (Invoke-External $agy @('plugin', 'install', $Dir)).ExitCode -eq 0) { return $true }
+    $manifest = Read-JsonFile (Join-Path $Dir 'plugin.json') @{}
+    $name = if ($manifest.name) { $manifest.name } else { Split-Path -Leaf $Dir }
+    try { Copy-Folder $Dir (Join-Path (Get-AgyPaths).PluginsDir $name); return $true } catch { return $false }
 }
 
 function Test-SourceWarning([string]$Err) {

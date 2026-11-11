@@ -276,6 +276,7 @@
   {
     "command": "graphify",
     "id": "graphify",
+    "module": "graphify",
     "package": "graphifyy",
     "postInstall": [
       "install",

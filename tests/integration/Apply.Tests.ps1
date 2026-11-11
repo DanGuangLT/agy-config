@@ -16,6 +16,19 @@ BeforeAll {
 }
 AfterAll { $env:AGYCFG_HOME = $script:oldHome }
 
+Describe 'Install-LocalPlugin' {
+    It 'copies the plugin folder when agy cannot install it (files in use while agy runs)' {
+        $env:AGYCFG_HOME = Join-Path $TestDrive ('h' + [guid]::NewGuid().ToString('N'))
+        $src = Join-Path $TestDrive ('plug' + [guid]::NewGuid().ToString('N'))
+        Write-TextFile (Join-Path $src 'plugin.json') '{"name":"my-plugin","version":"1.0.0"}'
+        Write-TextFile (Join-Path $src 'hooks.json') '{}'
+        Mock Resolve-Tool { 'agy.exe' }
+        Mock Invoke-External { @{ ExitCode = 1; StdOut = ''; StdErr = 'file in use' } }
+        Install-LocalPlugin $src | Should -BeTrue
+        Read-TextFile (Join-Path (Get-AgyPaths).PluginsDir 'my-plugin\hooks.json') | Should -Be '{}'
+    }
+}
+
 Describe 'Invoke-Apply' {
     BeforeEach {
         Mock Update-ConfigRepo { @{ Ok = $true; Error = '' } }

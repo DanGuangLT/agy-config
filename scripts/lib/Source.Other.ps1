@@ -18,13 +18,29 @@ function Install-PipTool($Source, [string]$Version) {
     $r = Invoke-External $py @('-X', 'utf8', '-m', 'pip', 'install', '--user', '--upgrade', '--disable-pip-version-check', '-q', $spec)
     if ($r.ExitCode -ne 0) { return @{ Ok = $false; Error = "pip install $spec failed: $($r.StdErr)" } }
 
+    $s = Invoke-External $py @('-X', 'utf8', '-c', "import sysconfig;print(sysconfig.get_path('scripts','nt_user'))")
+    if ($s.ExitCode -ne 0) { return @{ Ok = $false; Error = "python sysconfig failed: $($s.StdErr)" } }
+    $scripts = $s.StdOut.Trim()
+    $cmd = if ($Source.command) { $Source.command } else { @($Source.provides)[0] }
+
     if ($Source.postInstall) {
-        $s = Invoke-External $py @('-X', 'utf8', '-c', "import sysconfig;print(sysconfig.get_path('scripts','nt_user'))")
-        if ($s.ExitCode -ne 0) { return @{ Ok = $false; Error = "python sysconfig failed: $($s.StdErr)" } }
-        $cmd = if ($Source.command) { $Source.command } else { @($Source.provides)[0] }
-        $exe = Join-Path $s.StdOut.Trim() ($cmd + '.exe')
-        $r2 = Invoke-External $exe @($Source.postInstall)
+        # Prefer `python -m <module>`: python.exe is trusted even where Smart App Control blocks pip's launcher exe.
+        $r2 = if ($Source.module) { Invoke-External $py (@('-X', 'utf8', '-m', $Source.module) + @($Source.postInstall)) }
+              else { Invoke-External (Join-Path $scripts ($cmd + '.exe')) @($Source.postInstall) }
         if ($r2.ExitCode -ne 0) { return @{ Ok = $false; Error = "$cmd $(@($Source.postInstall) -join ' ') failed: $($r2.StdErr)" } }
+    }
+
+    # A launcher blocked by Application Control is replaced by a .cmd shim that runs the module,
+    # so the skill's `graphify ...` commands keep working.
+    if ($Source.module) {
+        $exe = Join-Path $scripts ($cmd + '.exe')
+        if (Test-Path $exe) {
+            $probe = Invoke-External $exe @('--help') -TimeoutSeconds 60
+            if ($probe.ExitCode -eq -1 -and $probe.StdErr -match 'Application Control|blocked') {
+                Remove-Item $exe -Force
+                Write-TextFile (Join-Path $scripts ($cmd + '.cmd')) ("@echo off`r`n`"$py`" -X utf8 -m " + $Source.module + " %*`r`n")
+            }
+        }
     }
     return @{ Ok = $true; Error = '' }
 }

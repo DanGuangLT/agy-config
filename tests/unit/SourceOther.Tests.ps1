@@ -72,6 +72,38 @@ Describe 'Other sources' {
         }
     }
 
+    Describe 'pip-tool with a module' {
+        BeforeEach {
+            $script:mod = @{ id = 'graphify'; type = 'pip-tool'; package = 'graphifyy'; module = 'graphify'; command = 'graphify'; postInstall = @('install', '--platform', 'antigravity-windows'); provides = @('graphify') }
+            $script:scripts = Join-Path $TestDrive ('pyscripts' + [guid]::NewGuid().ToString('N'))
+            New-Item -ItemType Directory -Force -Path $script:scripts | Out-Null
+            Mock Resolve-Tool { 'python.exe' }
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = "3.14`n"; StdErr = '' } } -ParameterFilter { ($Arguments -join ' ') -match 'version_info' }
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = "$script:scripts`n"; StdErr = '' } } -ParameterFilter { ($Arguments -join ' ') -match 'sysconfig' }
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = ''; StdErr = '' } } -ParameterFilter { $Arguments -contains 'pip' }
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = ''; StdErr = '' } } -ParameterFilter { ($Arguments -join ' ') -match '-m graphify install' }
+        }
+        It 'runs postInstall through python -m instead of the launcher exe' {
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = 'usage'; StdErr = '' } } -ParameterFilter { $Exe -like '*graphify.exe' }
+            (Install-Source $script:mod '0.9.100').Ok | Should -BeTrue
+            Should -Invoke Invoke-External -Times 1 -Exactly -ParameterFilter { $Exe -eq 'python.exe' -and ($Arguments -join ' ') -eq '-X utf8 -m graphify install --platform antigravity-windows' }
+        }
+        It 'replaces a launcher blocked by Application Control with a cmd shim' {
+            Write-TextFile (Join-Path $script:scripts 'graphify.exe') 'fake'
+            Mock Invoke-External { @{ ExitCode = -1; StdOut = ''; StdErr = 'An Application Control policy has blocked this file' } } -ParameterFilter { $Exe -like '*graphify.exe' }
+            (Install-Source $script:mod '0.9.100').Ok | Should -BeTrue
+            Test-Path (Join-Path $script:scripts 'graphify.exe') | Should -BeFalse
+            Read-TextFile (Join-Path $script:scripts 'graphify.cmd') | Should -Match '"python\.exe" -X utf8 -m graphify %\*'
+        }
+        It 'leaves a working launcher alone' {
+            Write-TextFile (Join-Path $script:scripts 'graphify.exe') 'fake'
+            Mock Invoke-External { @{ ExitCode = 0; StdOut = 'usage'; StdErr = '' } } -ParameterFilter { $Exe -like '*graphify.exe' }
+            (Install-Source $script:mod '0.9.100').Ok | Should -BeTrue
+            Test-Path (Join-Path $script:scripts 'graphify.exe') | Should -BeTrue
+            Test-Path (Join-Path $script:scripts 'graphify.cmd') | Should -BeFalse
+        }
+    }
+
     Describe 'marketplace' {
         It 'snapshots before install' {
             $existing = Join-Path (Get-AgyPaths).PluginsDir 'gemini-api'
