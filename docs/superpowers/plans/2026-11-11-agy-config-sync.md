@@ -26,7 +26,7 @@
 
 ## Review Focus
 
-1. **Vietnamese or other non-ASCII text in `GEMINI.md`, profile files and user names** (`C:\Users\Nguyễn Văn A`). Must round-trip byte-for-byte through build, split, write and read under PowerShell 5.1. Tested in Task 2 (`round-trips Vietnamese text`) and Task 1 (`writes UTF-8 without BOM`).
+1. **Vietnamese or other non-ASCII text in `GEMINI.md`, profile files and user names** (`C:\Users\<tên người dùng>`). Must round-trip byte-for-byte through build, split, write and read under PowerShell 5.1. Tested in Task 2 (`round-trips Vietnamese text`) and Task 1 (`writes UTF-8 without BOM`).
 2. **Scheduled-task context, where `agy`, `git` or `python` are not on PATH.** Tools must be found at known install locations, or the run fails with a log line instead of hanging. Tested in Task 1 (`Resolve-Tool falls back to known locations`).
 3. **Offline at logon, or a fetch failing halfway through `apply`.** Nothing is uninstalled, `applied.json` is unchanged, the exit code is non-zero and the error is logged. Tested in Task 8 (`leaves state untouched when a source fails`).
 4. **Two syncs at once** (hook plus scheduled task). The second exits at once. A lock older than 30 minutes is treated as stale and taken over. Tested in Task 9 (`second run exits while lock held`, `takes over stale lock`).

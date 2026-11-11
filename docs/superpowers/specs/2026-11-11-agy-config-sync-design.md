@@ -217,7 +217,7 @@ Các bước:
    - Plugin/skill tự viết (thứ không khớp nguồn nào).
    - Định nghĩa MCP, với giá trị bí mật thay bằng `${TÊN_BIẾN}`.
 2. **Không gom**: `trustedWorkspaces`, `model`, tên máy, lịch sử, log, cache, skill không rõ nguồn (ghi vào báo cáo cục bộ).
-3. Quét bí mật trên mọi file sắp commit. Thấy dấu hiệu (`ghp_`, `github_pat_`, `sk-`, `AIza`, `-----BEGIN`, `password=`, email, đường dẫn `C:\Users\<tên>`) thì **dừng hẳn, không commit**, ghi log.
+3. Quét bí mật trên mọi file sắp commit. Thấy dấu hiệu (`ghp_`, `github_pat_`, `sk-`, `AIza`, `-----BEGIN`, phép gán giá trị cho `password`, email, đường dẫn `C:\Users\<tên>`) thì **dừng hẳn, không commit**, ghi log.
 4. Không có thay đổi thì thoát.
 5. Có thay đổi: commit `sync(<profile>): <ngày giờ>`, `git pull --rebase`, `git push`. Rebase xung đột thì hủy rebase, đẩy sang nhánh `sync/<profile>-<thời-gian>`, ghi log để agy xử lý (mục 7).
 
