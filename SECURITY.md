@@ -1,6 +1,6 @@
 # Security policy
 
-Report vulnerabilities privately through [GitHub Security Advisories](https://github.com/DanGuangLT/Pre-configured-skills-for-the-antigravity-agent/security/advisories/new) using **Report a vulnerability**. Include the affected script or source, reproduction steps, impact, and relevant redacted logs. Do not post live credentials or sensitive configuration in a public issue or pull request. For a fork, use that fork's private reporting channel; upstream issues belong in the advisory link above.
+Report vulnerabilities privately through [GitHub Security Advisories](https://github.com/DanGuangLT/agy-config/security/advisories/new) using **Report a vulnerability**. Include the affected script or source, reproduction steps, impact, and relevant redacted logs. Do not post live credentials or sensitive configuration in a public issue or pull request. For a fork, use that fork's private reporting channel; upstream issues belong in the advisory link above.
 
 If a credential has been exposed, revoke or rotate it with its provider immediately. Removing a file from the current branch does not remove it from Git history.
 

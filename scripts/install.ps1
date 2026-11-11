@@ -1,6 +1,6 @@
 # Install this agy configuration on this machine. Safe to run again.
 #   From a clone:  powershell -ExecutionPolicy Bypass -File scripts\install.ps1 [-ProfileName <name>]
-#   One line:      irm https://raw.githubusercontent.com/DanGuangLT/Pre-configured-skills-for-the-antigravity-agent/main/scripts/install.ps1 | iex
+#   One line:      irm https://raw.githubusercontent.com/DanGuangLT/agy-config/main/scripts/install.ps1 | iex
 #                  (clones the repo to ~/.agy-config first; read the script before running it)
 [CmdletBinding()]
 param(
@@ -9,7 +9,7 @@ param(
     [string]$ProjectMapTool,
     [switch]$Yes,
     [string]$RepoPath,
-    [string]$RepoUrl = 'https://github.com/DanGuangLT/Pre-configured-skills-for-the-antigravity-agent.git'
+    [string]$RepoUrl = 'https://github.com/DanGuangLT/agy-config.git'
 )
 
 $agyInstallCode = & {

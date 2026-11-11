@@ -38,7 +38,7 @@ AfterAll {
 
 Describe 'Get-CompareUrl' {
     It 'builds the compare link from https and ssh remotes' {
-        Get-CompareUrl 'https://github.com/DanGuangLT/Pre-configured-skills-for-the-antigravity-agent.git' | Should -Be 'https://github.com/DanGuangLT/Pre-configured-skills-for-the-antigravity-agent/compare/main...update/sources?expand=1'
+        Get-CompareUrl 'https://github.com/DanGuangLT/agy-config.git' | Should -Be 'https://github.com/DanGuangLT/agy-config/compare/main...update/sources?expand=1'
         Get-CompareUrl 'git@github.com:a/b.git' | Should -Be 'https://github.com/a/b/compare/main...update/sources?expand=1'
     }
 }

@@ -1,6 +1,6 @@
 # Design: Shared agy configuration with automatic backups and updates
 
-Date: 2026-11-11 - Repo: `DanGuangLT/Pre-configured-skills-for-the-antigravity-agent` (public)
+Date: 2026-11-11 - Repo: `DanGuangLT/agy-config` (public)
 
 ## 1. Purpose and motivation
 

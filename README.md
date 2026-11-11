@@ -21,11 +21,11 @@ You can choose another installed project map skill, or `none`, instead of graphi
 
 ### Recommended: fork and clone for your own backup
 
-Fork [this repository](https://github.com/DanGuangLT/Pre-configured-skills-for-the-antigravity-agent) on GitHub first. Replace `<your-account>` in the command below with the account that owns your fork. Configure Git authentication so this machine can push to it.
+Fork [this repository](https://github.com/DanGuangLT/agy-config) on GitHub first. Replace `<your-account>` in the command below with the account that owns your fork. Configure Git authentication so this machine can push to it.
 
 ```powershell
-git clone https://github.com/<your-account>/Pre-configured-skills-for-the-antigravity-agent.git
-cd Pre-configured-skills-for-the-antigravity-agent
+git clone https://github.com/<your-account>/agy-config.git
+cd agy-config
 Get-Content .\scripts\install.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
@@ -39,17 +39,17 @@ Role is determined per machine by a dry-run push to `origin`, then stored locall
 ### Use the shared configuration as a follower
 
 ```powershell
-git clone https://github.com/DanGuangLT/Pre-configured-skills-for-the-antigravity-agent.git
-cd Pre-configured-skills-for-the-antigravity-agent
+git clone https://github.com/DanGuangLT/agy-config.git
+cd agy-config
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
 ### One-line install
 
-Read [install.ps1](https://github.com/DanGuangLT/Pre-configured-skills-for-the-antigravity-agent/blob/main/scripts/install.ps1) first: this command downloads and executes it. It clones the upstream repository into `~/.agy-config` by default; use the fork-and-clone method above for your own backup.
+Read [install.ps1](https://github.com/DanGuangLT/agy-config/blob/main/scripts/install.ps1) first: this command downloads and executes it. It clones the upstream repository into `~/.agy-config` by default; use the fork-and-clone method above for your own backup.
 
 ```powershell
-irm https://raw.githubusercontent.com/DanGuangLT/Pre-configured-skills-for-the-antigravity-agent/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/DanGuangLT/agy-config/main/scripts/install.ps1 | iex
 ```
 
 From a clone, the supported installer options are:
