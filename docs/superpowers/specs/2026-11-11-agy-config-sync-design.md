@@ -17,7 +17,7 @@ Người dùng (chủ repo) đã mất công cấu hình Antigravity CLI (`agy`)
 **Mục tiêu**
 
 1. Cài mới trên một máy chỉ có `agy`: một lệnh duy nhất, xong là agy có đủ quy tắc, quyền, skill, plugin và cơ chế tự động.
-2. Máy của chủ repo tự đồng bộ máy → repo sau mỗi phiên agy và theo lịch.
+2. Máy của chủ repo tự đồng bộ máy → repo trong đợt bảo trì hằng tuần khi khởi động agy; thay đổi qua skill `agy-self-config` được sao lưu ngay sau mỗi thay đổi.
 3. Máy owner tự cập nhật skill/plugin từ nguồn gốc mỗi tuần, có khóa phiên bản để quay lui. Mọi máy tự nhận cập nhật repo → máy, chỉ từ nhánh `main`.
 4. agy có một skill riêng để tự bảo trì cấu hình này theo lời người dùng.
 5. README hướng dẫn người vừa tải agy về, bằng tiếng Anh (`README.md`) và tiếng Việt (`README.vi.md`).
@@ -53,7 +53,7 @@ Người dùng (chủ repo) đã mất công cấu hình Antigravity CLI (`agy`)
 
 - `permissions.allow` so khớp **chính xác** cả câu lệnh (`command(git status)` không cho `git status --short`); không hỗ trợ `*`.
 - `agy plugin install <đường-dẫn-thư-mục>` cài plugin cục bộ; `agy plugin validate <thư-mục>` kiểm tra plugin.
-- Plugin có thể mang `hooks.json` riêng. Sự kiện có sẵn: `SessionStart`, `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation`, `Stop`. Hook chạy qua `cmd /c` trên Windows, mặc định hết giờ sau 30 giây, nhận JSON qua stdin và phải in JSON ra stdout.
+- Plugin có thể mang `hooks.json` riêng. Hook của repo dùng sự kiện `SessionStart`. Hook chạy qua `cmd /c` trên Windows, mặc định hết giờ sau 30 giây, nhận JSON qua stdin và phải in JSON ra stdout.
 - Ở chế độ `--print` (chạy nền), lệnh chưa được cho phép bị từ chối tự động.
 
 ## 4. Nguồn skill và plugin: ghi nguồn, không chép
@@ -110,6 +110,7 @@ scripts/
   apply.ps1               # repo → máy
   sync.ps1                # máy → repo (chỉ profile owner)
   update.ps1              # cập nhật từ nguồn gốc hằng tuần
+  maintain.ps1            # bảo trì hằng tuần khi khởi động agy, hoặc chạy tay
   lib/                    # hàm dùng chung
 tests/                    # Pester
 .github/
@@ -126,7 +127,6 @@ docs/
   "name": "lianharman",
   "language": "vi",
   "sync": { "debounceMinutes": 10 },
-  "update": { "day": "Sunday" },
   "projectMap": { "tool": "graphify" },
   "ownSkills": [],
   "ownPlugins": [],
@@ -181,10 +181,12 @@ Các bước của script:
    - công cụ bản đồ dự án: Enter để dùng graphify; hoặc gõ tên skill khác đang dùng; hoặc `none`.
 3. Sao lưu cấu hình hiện có của agy vào `~/.agy-config-backup/<thời-gian>/` trước khi đổi gì.
 4. Chạy `apply`.
-5. Xác định vai trò máy (mục 5.3). Đăng ký tác vụ Windows Task Scheduler cho người dùng hiện tại, không cần quyền admin: mọi máy chạy `apply` lúc đăng nhập; máy owner chạy thêm `sync` hằng ngày và `update` hằng tuần.
+5. Xác định vai trò máy (mục 5.3). Không đăng ký tác vụ Windows Task Scheduler nào; xóa ba tác vụ do phiên bản cũ tạo: `agy-config-apply`, `agy-config-sync`, `agy-config-update`. Bảo trì hằng tuần được kích hoạt bởi hook `SessionStart` khi khởi động agy (mục 7).
 6. In tóm tắt đã cài những gì, kèm cách gỡ.
 
 Chạy lại `install.ps1` nhiều lần vẫn an toàn (idempotent).
+
+Lời nhắc và thông báo script chỉ dùng tiếng Anh, lấy từ `scripts/i18n/en.json`; không còn file i18n tiếng Việt. Ngôn ngữ trả lời của profile vẫn tùy chỉnh được; quy tắc được sinh bằng tiếng Anh, ví dụ "Always reply to the user in Vietnamese".
 
 ### 6.2 Repo → máy (`apply.ps1`)
 
@@ -201,11 +203,11 @@ Chạy lại `install.ps1` nhiều lần vẫn an toàn (idempotent).
 
 Kích hoạt từ ba chỗ:
 
-- Hook `Stop` của plugin `agy-self-config`, sau mỗi lượt agy làm xong. Hook khởi chạy `sync` ở tiến trình tách rời rồi in `{}` ngay để không làm chậm agy.
-- Tác vụ hằng ngày.
-- Lệnh tay.
+- `apply` chạy sync đầy đủ trước khi pull và cài trên máy owner, bao gồm trong đợt bảo trì hằng tuần khi khởi động agy.
+- Skill `agy-self-config` chạy `scripts/sync.ps1 -Force` ngay sau mỗi thay đổi cấu hình.
+- Lệnh tay `scripts/sync.ps1 -Force`.
 
-Chống chạy dồn: không chạy nếu lần trước cách chưa đủ `debounceMinutes`, hoặc đang có một tiến trình sync khác (file khóa).
+Chống chạy dồn: không chạy nếu lần trước cách chưa đủ `debounceMinutes` (trừ khi dùng `-Force`), hoặc đang có một tiến trình sync khác (file khóa).
 
 Các bước:
 
@@ -221,23 +223,25 @@ Các bước:
 4. Không có thay đổi thì thoát.
 5. Có thay đổi: commit `sync(<profile>): <ngày giờ>`, `git pull --rebase`, `git push`. Rebase xung đột thì hủy rebase, đẩy sang nhánh `sync/<profile>-<thời-gian>`, ghi log để agy xử lý (mục 7).
 
-Log ở `~/.agy-config-state/logs/`, nằm ngoài repo.
+Log ở `~/.agy-config-state/logs/<apply|sync|update|maintain>-yyyyMMdd.log`, nằm ngoài repo.
 
-### 6.4 Cập nhật công nghệ (`update.ps1`, hằng tuần, chỉ máy owner)
+### 6.4 Cập nhật công nghệ (`update.ps1`, do bảo trì hằng tuần chạy, chỉ máy owner)
+
+`scripts/maintain.ps1` chạy `apply` trước (sync đầy đủ để sao lưu cấu hình máy owner, rồi pull và cài), sau đó chạy `update`. Máy follower chỉ chạy `apply`. Có thể chạy tay `scripts/update.ps1`, thêm `-NoPush` để thử tại máy mà không đẩy nhánh, hoặc chạy `scripts/maintain.ps1` để bảo trì ngay.
 
 1. Với từng nguồn: lấy SHA/phiên bản mới nhất và cài thử trên máy owner.
 2. Kiểm tra từng nguồn (`agy plugin validate`, có `SKILL.md` hợp lệ). Nguồn nào lỗi thì **quay về phiên bản trong file khóa**, các nguồn khác vẫn lên bản mới.
 3. Ghi phiên bản mới vào file khóa. File khóa mới đến `main` theo cách ở mục 6.5.
 4. Ghi một dòng tóm tắt vào log: nguồn nào lên bản nào, nguồn nào bị quay lui.
 
-Máy follower không bao giờ tự tải bản mới nhất từ nguồn ngoài. Nó nhận bản mới khi file khóa trên `main` đổi, qua `apply` lúc đăng nhập.
+Máy follower không bao giờ tự tải bản mới nhất từ nguồn ngoài. Nó nhận bản mới khi file khóa trên `main` đổi, qua `apply` trong đợt bảo trì hằng tuần khi khởi động agy hoặc khi chạy tay.
 
 ### 6.5 File khóa mới đi lên `main` thế nào
 
 Chủ repo chọn: **qua PR, một cú bấm mỗi tuần**.
 
 1. `update` đẩy file khóa mới lên nhánh `update/sources`, rồi mở PR "Weekly source updates / Cập nhật nguồn tuần này" vào `main`. Nội dung PR là bảng: nguồn, phiên bản cũ → mới, nguồn bị quay lui. Nếu PR tuần trước chưa merge thì cập nhật luôn PR đó thay vì mở PR mới.
-2. Máy owner vẫn **dùng bản mới ngay**: bản khóa đang chờ được giữ ở `~/.agy-config-state/pending.lock.json`. Trên máy owner, `apply` ưu tiên bản chờ cho các nguồn có trong đó, nên không bị hạ phiên bản lúc đăng nhập. PR được merge thì xóa bản chờ. PR bị đóng mà không merge thì lần `apply` sau quay về file khóa trên `main`.
+2. Máy owner vẫn **dùng bản mới ngay**: bản khóa đang chờ được giữ ở `~/.agy-config-state/pending.lock.json`. Trên máy owner, `apply` ưu tiên bản chờ cho các nguồn có trong đó, nên không bị hạ phiên bản ở lần bảo trì tiếp theo. PR được merge thì xóa bản chờ. PR bị đóng mà không merge thì lần `apply` sau quay về file khóa trên `main`.
 3. **Không cần cài gì thêm trên máy** để mở PR: máy owner chỉ `git push` nhánh `update/sources`. Workflow `.github/workflows/update-pr.yml` chạy trên GitHub khi nhánh đó được đẩy lên, rồi tạo hoặc cập nhật PR bằng `GITHUB_TOKEN` có sẵn.
    - Repo cần bật một lần: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests". README ghi rõ bước này cho chủ repo và người fork.
    - PR do `GITHUB_TOKEN` tạo không tự kích hoạt workflow khác, nên `validate.yml` chạy cả khi có push lên `update/**`. Kết quả kiểm tra gắn với commit, nên vẫn hiện trên PR.
@@ -248,10 +252,13 @@ Chủ repo chọn: **qua PR, một cú bấm mỗi tuần**.
 
 Plugin của repo, cài trên mọi máy. Gồm:
 
-- **Hook `Stop`** gọi `sync` (mục 6.3; chỉ có tác dụng khi profile là owner).
+- **Chỉ có hook `SessionStart`**, tên `agy-config-weekly`, gọi `hooks/on-start.ps1` khi agy khởi động. Hook kiểm tra hai mốc trong `~/.agy-config-state`: `weekly.last` (lần bảo trì thành công) và `weekly-attempt.last` (lần thử gần nhất). Nếu lần thành công đã cách ít nhất 7 ngày và lần thử đã cách ít nhất 1 ngày (hoặc thiếu mốc tương ứng), hook khởi chạy `scripts/maintain.ps1` ẩn ở nền rồi in `{}` và trả về ngay; nếu chưa đủ điều kiện thì không làm gì.
+  - Máy owner chạy `apply` (sync đầy đủ để sao lưu trước, rồi pull và cài) rồi `update`; follower chỉ chạy `apply`.
+  - Chỉ ghi `weekly.last` khi mọi bước thành công. Tuần bị lỗi được thử lại tối đa 1 lần/ngày ở lần khởi động agy tiếp theo. Không có tác vụ nền chạy khi agy đóng.
+  - Chạy `scripts/maintain.ps1` để bảo trì ngay, bỏ qua kiểm tra thời gian của hook. Xóa `~/.agy-config-state/weekly.last` để hook chạy lại sớm hơn ở lần khởi động agy sau; vẫn phải đủ 1 ngày từ lần thử gần nhất.
 - **Skill `agy-self-config`**, mô tả kích hoạt khi người dùng muốn: đổi cách agy làm việc; cài, gỡ hay tìm skill/plugin; sao lưu, khôi phục, chuyển máy; cập nhật; xem vì sao đồng bộ lỗi. Skill hướng dẫn agy:
   - Sửa đúng file: thay đổi riêng thì sửa trong profile; thay đổi dùng chung thì sửa trong `core` (chỉ owner); thêm skill/plugin bên ngoài thì thêm vào `sources.json` của profile.
-  - Chạy `apply`/`sync`/`update` và đọc log trong `~/.agy-config-state/logs/`.
+  - Chạy `apply`/`sync`/`update`/`maintain` và đọc log trong `~/.agy-config-state/logs/`. Trên máy owner, chạy `scripts/sync.ps1 -Force` sau mỗi thay đổi để sao lưu ngay.
   - Gỡ xung đột nhánh `sync/*` cùng người dùng.
   - Tìm skill mới bằng `npx skills find` và gợi ý cho người dùng.
   - Gửi đóng góp lên repo gốc bằng PR khi người dùng không phải owner.
@@ -276,21 +283,23 @@ Plugin của repo, cài trên mọi máy. Gồm:
   - PSScriptAnalyzer cho `scripts/`.
   - Chạy test Pester.
 - Máy chỉ nhận cập nhật từ `main`.
-- `install.ps1` in ra những gì sẽ làm và hỏi xác nhận trước khi đăng ký tác vụ tự động.
+- `install.ps1` in ra những gì sẽ làm và hỏi xác nhận trước khi sao lưu, áp dụng cấu hình và dọn tác vụ cũ. `uninstall.ps1` gỡ plugin `agy-self-config` và các tác vụ Windows Task Scheduler còn sót từ phiên bản cũ.
 
 ## 9. Ràng buộc
 
 - Windows 10/11, Windows PowerShell 5.1 (có sẵn), không cần quyền admin.
 - Cần sẵn: `git`, `agy` ≥ 1.5, Node.js (chỉ để tìm skill bằng `npx skills`). Chỉ khi chọn graphify mới cần Python ≥ 3.10. Không cần GitHub CLI.
-- Chọn graphify mà thiếu Python: `install` vẫn cài mọi thứ khác, báo rõ graphify chưa cài được kèm cách cài Python (`winget install Python.Python.3.13`). `apply` thử lại ở mỗi lần đăng nhập.
+- Chọn graphify mà thiếu Python: `install` vẫn cài mọi thứ khác, báo rõ graphify chưa cài được kèm cách cài Python (`winget install Python.Python.3.13`). `apply` thử lại trong đợt bảo trì hằng tuần sau hoặc khi chạy tay.
 - Script gọi agy qua lệnh CLI (`agy plugin …`), không sửa trực tiếp file nội bộ của agy ngoài các file trong bảng mục 3. Lý do: agy đổi định dạng file nội bộ thì script vẫn chạy.
-- Hook phải trả lời trong 30 giây, nên mọi việc nặng chạy tách rời.
+- Hook `SessionStart` có timeout 10 giây và trả về ngay; mọi việc nặng chạy tách rời.
+- Không chạy tác vụ nền khi agy đóng: bảo trì chạy khi khởi động agy, tối đa 1 lần/tuần. Lý do: để dành RAM cho game và công việc khác; tuần bị lỗi chỉ thử lại tối đa 1 lần/ngày khi khởi động agy.
 
 ## 10. Quyết định của chủ repo
 
 - Repo công khai; mọi người dùng được và đóng góp qua PR.
 - Người dùng nhắm tới: cả người Việt lẫn quốc tế.
 - Tự động: tự đồng bộ, tự cập nhật công nghệ trên máy owner, không hỏi trước.
+- Không chạy tác vụ nền khi agy đóng: bảo trì chạy khi khởi động agy, tối đa 1 lần/tuần.
 - Bản cập nhật nguồn chỉ đến máy người khác sau khi chủ repo merge PR hằng tuần (mục 6.5).
 - Không cài GitHub CLI trên máy; PR do GitHub Actions mở.
 - Bước định hướng luôn dùng một công cụ bản đồ dự án. graphify là mặc định, không bắt buộc: người dùng đã có skill khác tương tự thì dùng skill đó và không cài graphify.
@@ -301,7 +310,7 @@ Plugin của repo, cài trên mọi máy. Gồm:
 ## 11. Quyết định do người thiết kế chọn (chủ repo có thể đổi)
 
 - Giấy phép MIT cho phần của repo.
-- README chính tiếng Anh + bản tiếng Việt; script cài hỏi ngôn ngữ trả lời.
+- README chính tiếng Anh + bản tiếng Việt; script cài hỏi ngôn ngữ trả lời. Văn bản script chỉ dùng tiếng Anh (`scripts/i18n/en.json`); quy tắc ngôn ngữ của profile cũng được sinh bằng tiếng Anh.
 - Không chép skill bên thứ ba vào repo; ghi nguồn + khóa phiên bản.
 - Thay 3 plugin Anthropic đang cài tay trên máy chủ repo (từ `~/.gemini/local-plugins`) bằng bản tải từ repo gốc qua `packaged-plugin`.
 - Không đồng bộ `trustedWorkspaces`, `model`, tên máy.
@@ -311,7 +320,7 @@ Plugin của repo, cài trên mọi máy. Gồm:
 - Vai trò owner/follower quyết theo quyền đẩy của từng máy; người khác được khuyên fork.
 - `sync` ghi theo kiểu ba chiều so với lần `apply` gần nhất; `apply` chỉ gỡ những gì chính nó đã cài.
 - Đồ tự viết phải được khai trong `ownSkills`/`ownPlugins`; thứ chưa rõ nguồn không bao giờ tự đẩy lên.
-- Chống dồn sync 10 phút; cập nhật hằng tuần vào Chủ nhật.
+- Chống dồn sync 10 phút; `-Force` bỏ qua thời gian chờ. Bảo trì hằng tuần qua `SessionStart` theo quyết định của chủ repo ở mục 10.
 - Skill không rõ nguồn/giấy phép không tự đẩy lên.
 - Windows trước; macOS/Linux để người đóng góp thêm.
 
