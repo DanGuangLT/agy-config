@@ -1,0 +1,65 @@
+BeforeAll {
+    $script:hook = (Resolve-Path (Join-Path $PSScriptRoot '..\..\core\plugins\agy-self-config\hooks\on-stop.ps1')).Path
+    $script:oldHome = $env:AGYCFG_HOME
+    function Set-Machine($State) {
+        $env:AGYCFG_HOME = Join-Path $TestDrive ('h' + [guid]::NewGuid().ToString('N'))
+        if ($State) {
+            $dir = Join-Path $env:AGYCFG_HOME '.agy-config-state'
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            ($State | ConvertTo-Json) | Set-Content -Path (Join-Path $dir 'machine.json') -Encoding ASCII
+        }
+    }
+    function New-FakeRepo {
+        $r = Join-Path $TestDrive ('repo with space ' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Force -Path (Join-Path $r 'scripts') | Out-Null
+        Set-Content -Path (Join-Path $r 'scripts\sync.ps1') -Value 'exit 0'
+        $r
+    }
+}
+AfterAll { $env:AGYCFG_HOME = $script:oldHome }
+
+Describe 'on-stop hook' {
+    It 'prints {} and exits 0 when state missing (real process)' {
+        Set-Machine $null
+        $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $script:hook
+        $LASTEXITCODE | Should -Be 0
+        ($out -join '').Trim() | Should -Be '{}'
+    }
+    It 'starts sync for owner' {
+        $repo = New-FakeRepo
+        Set-Machine @{ profile = 'p'; role = 'owner'; repoPath = $repo }
+        Mock Start-Process { }
+        $out = & $script:hook
+        ($out -join '').Trim() | Should -Be '{}'
+        Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter {
+            $FilePath -eq 'powershell' -and ($ArgumentList -join ' ') -match [regex]::Escape('"' + (Join-Path $repo 'scripts\sync.ps1') + '"')
+        }
+    }
+    It 'does nothing for follower' {
+        $repo = New-FakeRepo
+        Set-Machine @{ profile = 'p'; role = 'follower'; repoPath = $repo }
+        Mock Start-Process { }
+        ((& $script:hook) -join '').Trim() | Should -Be '{}'
+        Should -Invoke Start-Process -Times 0 -Exactly
+    }
+    It 'still prints {} when Start-Process fails' {
+        $repo = New-FakeRepo
+        Set-Machine @{ profile = 'p'; role = 'owner'; repoPath = $repo }
+        Mock Start-Process { throw 'nope' }
+        ((& $script:hook) -join '').Trim() | Should -Be '{}'
+    }
+}
+
+Describe 'plugin files' {
+    It 'hooks.json registers the Stop hook' {
+        $h = Get-Content (Join-Path $PSScriptRoot '..\..\core\plugins\agy-self-config\hooks.json') -Raw | ConvertFrom-Json
+        $stop = @($h.'agy-config-sync'.Stop)
+        $stop.Count | Should -Be 1
+        $stop[0].command | Should -Match 'on-stop\.ps1'
+        $stop[0].timeout | Should -BeLessOrEqual 30
+    }
+    It 'ships the agy-self-config skill with name and description' {
+        $t = Get-Content (Join-Path $PSScriptRoot '..\..\core\plugins\agy-self-config\skills\agy-self-config\SKILL.md') -Raw
+        $t | Should -Match '(?s)^---\s*\r?\nname: agy-self-config\r?\ndescription: .+?\r?\n---'
+    }
+}
