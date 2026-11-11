@@ -1,8 +1,8 @@
 {
-  "agy-config-sync": {
-    "Stop": [
+  "agy-config-weekly": {
+    "SessionStart": [
       {
-        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ./hooks/on-stop.ps1",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ./hooks/on-start.ps1",
         "timeout": 10,
         "type": "command"
       }

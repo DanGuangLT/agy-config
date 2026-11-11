@@ -35,8 +35,7 @@ function Invoke-Install {
         [string]$ProfileName,
         [string]$Language,
         [string]$ProjectMapTool,
-        [switch]$Yes,
-        [switch]$NoTasks
+        [switch]$Yes
     )
     $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).ProviderPath
     $t = Get-I18nText $RepoRoot 'en'
@@ -70,8 +69,7 @@ function Invoke-Install {
     if ($mapTool -eq 'graphify' -and -not (Resolve-Tool python)) { Write-Host ($t.msgWarnTool -f 'python', $script:ToolHints.python) }
 
     $role = if (Test-PushAccess $RepoRoot) { 'owner' } else { 'follower' }
-    $taskNames = if ($NoTasks) { '-' } elseif ($role -eq 'owner') { 'agy-config-apply, agy-config-sync, agy-config-update' } else { 'agy-config-apply' }
-    Write-Host ($t.msgPlan -f $ProfileName, $role, $taskNames)
+    Write-Host ($t.msgPlan -f $ProfileName, $role)
     if (-not $Yes) {
         if (-not (Test-YesAnswer (Read-Host -Prompt $t.promptConfirm) $t)) { Write-Host $t.msgCancelled; return 1 }
     }
@@ -84,13 +82,10 @@ function Invoke-Install {
     $code = Invoke-Apply -RepoRoot $RepoRoot -SkipCapture
     if ($code -ne 0) { Write-Host ($t.msgApplyFailed -f (Get-AgyPaths).LogDir) }
 
-    # Register the tasks even after a partial failure: apply retries at every logon.
-    if (-not $NoTasks) {
-        $prof = Get-Profile $RepoRoot $ProfileName
-        Register-AgyTasks -RepoRoot $RepoRoot -Role $role -UpdateDay $prof.update.day
-    }
+    # Older versions used Windows scheduled tasks; maintenance now runs from the agy SessionStart hook.
+    Unregister-AgyTasks
     if (Test-Path (Join-Path $backup 'GEMINI.md')) { Write-Host ($t.msgOldGemini -f $ProfileName) }
-    Write-Host ($t.msgDone -f $ProfileName, $role, $taskNames)
+    Write-Host ($t.msgDone -f $ProfileName, $role)
     Write-Host ($t.msgUninstallHint -f (Join-Path $RepoRoot 'scripts\uninstall.ps1'))
     if ($code -ne 0) { return 1 }
     return 0

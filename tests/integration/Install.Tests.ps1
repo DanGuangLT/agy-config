@@ -21,7 +21,7 @@ Describe 'Invoke-Install' {
         Mock Resolve-Tool { $Name + '.exe' }
         Mock Test-PushAccess { $true }
         Mock Invoke-Apply { 0 }
-        Mock Register-AgyTasks { }
+        Mock Unregister-AgyTasks { }
         Mock Read-Host { 'y' }
         Mock Write-Host { }
     }
@@ -44,14 +44,13 @@ Describe 'Invoke-Install' {
         Invoke-Install -RepoRoot $repo -ProfileName lianharman -Yes | Should -Be 0
         $script:backupSeen | Should -BeTrue
     }
-    It 'records role and profile, then registers tasks for the role' {
+    It 'records role and profile' {
         $repo = New-InstallFixture
         Invoke-Install -RepoRoot $repo -ProfileName lianharman -Yes | Should -Be 0
         $m = Get-MachineState
         $m.role | Should -Be 'owner'
         $m.profile | Should -Be 'lianharman'
         $m.repoPath | Should -Be $repo
-        Should -Invoke Register-AgyTasks -Times 1 -Exactly -ParameterFilter { $Role -eq 'owner' -and $RepoRoot -eq $repo }
     }
     It 'makes a follower when push access is missing' {
         $repo = New-InstallFixture
@@ -81,7 +80,6 @@ Describe 'Invoke-Install' {
         try { Invoke-Install -RepoRoot ('.\' + (Split-Path -Leaf $repo)) -ProfileName lianharman -Yes | Should -Be 0 }
         finally { Pop-Location }
         (Get-MachineState).repoPath | Should -Be $repo
-        Should -Invoke Register-AgyTasks -ParameterFilter { $RepoRoot -eq $repo }
     }
     It 'asks for language and project map when creating a profile interactively' {
         $repo = New-InstallFixture
@@ -101,13 +99,13 @@ Describe 'Invoke-Install' {
         $before = (Get-ChildItem (Join-Path $repo 'profiles')).Count
         Invoke-Install -RepoRoot $repo -ProfileName again -Yes | Should -Be 0
         (Get-ChildItem (Join-Path $repo 'profiles')).Count | Should -Be $before
-        Should -Invoke Register-AgyTasks -Times 2 -Exactly
+        Should -Invoke Unregister-AgyTasks -Times 2 -Exactly
     }
-    It 'returns 1 but still registers tasks when apply fails' {
+    It 'returns 1 when apply fails, keeping what was installed' {
         $repo = New-InstallFixture
         Mock Invoke-Apply { 1 }
         Invoke-Install -RepoRoot $repo -ProfileName lianharman -Yes | Should -Be 1
-        Should -Invoke Register-AgyTasks -Times 1 -Exactly
+        (Get-MachineState).profile | Should -Be 'lianharman'
     }
 }
 
