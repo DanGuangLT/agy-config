@@ -88,6 +88,7 @@ Describe 'Invoke-Update' {
         $body = Invoke-TestGit $w.Origin @('log', '-1', '--format=%B', 'update/sources')
         $body | Should -Match 'chore\(sources\): weekly update \d{4}-\d{2}-\d{2}'
         $body | Should -Match '\| source \| old \| new \| result \|'
+        $body | Should -Match '(?m)^\|---\|---\|---\|---\|$'
         $body | Should -Match '\| superpowers \| old-sp \| new-superpowers \| updated \|'
         $lock = Invoke-TestGit $w.Origin @('show', 'update/sources:core/sources.lock.json')
         $lock | Should -Match '"superpowers": "new-superpowers"'

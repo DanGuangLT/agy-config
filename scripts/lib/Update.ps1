@@ -65,7 +65,7 @@ function Invoke-Update {
         foreach ($k in $newVersions.Keys) { $applied.sources[$k] = $newVersions[$k] }
         Set-AppliedState $applied
 
-        $table = @('| source | old | new | result |', '|---|---|---|') + @($rows | ForEach-Object {
+        $table = @('| source | old | new | result |', '|---|---|---|---|') + @($rows | ForEach-Object {
             $cells = @($_ | ForEach-Object { ([string]$_).Replace('|', '\|') -replace '\r\n|\r|\n', '<br>' })
             '| ' + ($cells -join ' | ') + ' |'
         })
