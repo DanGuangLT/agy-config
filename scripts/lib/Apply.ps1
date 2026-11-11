@@ -85,7 +85,7 @@ function Invoke-Apply {
     foreach ($n in @($applied.ownPlugins)) { if ($n -and $ownPlugins -notcontains $n) { Uninstall-AgyPlugin $n } }
 
     # 4. GEMINI.md
-    $coreText = Read-TextFile (Join-Path $RepoRoot 'core\GEMINI.core.md')
+    $coreText = (Read-TextFile (Join-Path $RepoRoot 'core\GEMINI.core.md')).TrimEnd("`r", "`n")
     Write-TextFile $paths.GeminiMd (Build-GeminiMd $coreText $prof.GeminiProfileText $prof.projectMap.tool)
 
     # 5. Permissions: add ours, drop the ones we added earlier that the repo no longer lists.
@@ -116,6 +116,9 @@ function Invoke-Apply {
         permissions    = $wanted
         mcpServers     = $mcpNames
         geminiManaged  = $true
+        # Base texts for sync's three-way merge of GEMINI.md regions.
+        geminiCoreText    = $coreText
+        geminiProfileText = $prof.GeminiProfileText
     }
     if ($isOwner -and $pending) {
         $repoLock = Get-EffectiveLock $RepoRoot $prof $null

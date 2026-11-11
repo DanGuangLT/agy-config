@@ -110,6 +110,15 @@ Describe 'Invoke-Apply' {
         Invoke-Apply -RepoRoot $repo -SkipCapture | Should -Be 0
         Get-PendingLock | Should -BeNullOrEmpty
     }
+    It 'captures local edits first: capture-only on a follower, full sync on the owner' {
+        Mock Invoke-Sync { 0 }
+        $repo = New-ApplyFixture
+        Invoke-Apply -RepoRoot $repo | Should -Be 0
+        Should -Invoke Invoke-Sync -Times 1 -Exactly -ParameterFilter { $CaptureOnly }
+        $repo2 = New-ApplyFixture -Role owner
+        Invoke-Apply -RepoRoot $repo2 | Should -Be 0
+        Should -Invoke Invoke-Sync -Times 1 -Exactly -ParameterFilter { $Force -and -not $CaptureOnly }
+    }
     It 'ignores pending versions on a follower' {
         $repo = New-ApplyFixture
         Set-PendingLock @{ superpowers = 'pending-sha' }

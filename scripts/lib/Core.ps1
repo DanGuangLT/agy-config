@@ -117,6 +117,18 @@ function Write-JsonFile([string]$Path, $Object) {
     Write-TextFile $Path ((Format-Json $Object) + "`n")
 }
 
+function Update-TextFile([string]$Path, [string]$Text) {
+    # Write only when the content differs (line endings ignored). Returns $true when written.
+    if (Test-Path $Path) {
+        $old = (Read-TextFile $Path) -replace "`r`n", "`n"
+        if ($old -eq ($Text -replace "`r`n", "`n")) { return $false }
+    }
+    Write-TextFile $Path $Text
+    return $true
+}
+
+function Update-JsonFile([string]$Path, $Object) { Update-TextFile $Path ((Format-Json $Object) + "`n") }
+
 function Write-AgyLog {
     param(
         [string]$Script,
