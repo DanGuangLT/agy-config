@@ -3,10 +3,10 @@
   "chrome-devtools-plugin": "1.10.1",
   "design": "877a617b435ee2edfb002d9a3703c0a1a03aa1ba",
   "engineering": "877a617b435ee2edfb002d9a3703c0a1a03aa1ba",
-  "gemini-api": "2.2.0",
+  "gemini-api": "2.5.0",
   "graphify": "0.9.100",
   "mattpocock-skills": "4ae2317ddb22b046e26455e4f9c9b3aaaf62212d",
-  "modern-web-guidance-plugin": "1.0.6",
+  "modern-web-guidance-plugin": "1.0.0",
   "superpowers": "22f0b463e7a5e579904dd6211a520321035526f7",
   "vercel-labs-skills": "e781cb4d07433dfe1d19e924ed45cc61738c55ec"
 }
