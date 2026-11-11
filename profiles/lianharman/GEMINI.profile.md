@@ -1,3 +1,3 @@
-## Ngôn ngữ
+## Language
 
-Trả lời, tóm tắt và đặt câu hỏi cho người dùng bằng tiếng Việt có dấu, câu ngắn, dễ hiểu. Tên file, lệnh và thuật ngữ kỹ thuật giữ nguyên, kèm giải thích tiếng Việt khi cần. Code, comment, commit message và nội dung PR viết bằng tiếng Anh.
+Always reply to the user in Vietnamese, with full diacritics: short, clear sentences. Keep file names, commands and technical terms as they are, with a short explanation in Vietnamese when needed. Code, comments, commit messages and pull requests are written in English.

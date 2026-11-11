@@ -25,6 +25,10 @@ Describe 'Register-AgyTasks' {
             $TaskName -eq 'agy-config-sync' -and $Action.Execute -eq 'powershell.exe' -and $Action.Arguments -match [regex]::Escape('-File "D:\my cfg\scripts\sync.ps1"')
         }
     }
+    It 'sync runs daily only (owner apply already syncs at logon)' {
+        Register-AgyTasks -RepoRoot 'D:\cfg' -Role owner
+        Should -Invoke Register-ScheduledTask -Times 1 -Exactly -ParameterFilter { $TaskName -eq 'agy-config-sync' -and @($Trigger).Count -eq 1 }
+    }
     It 'uses the profile update day for the weekly task' {
         Register-AgyTasks -RepoRoot 'D:\cfg' -Role owner -UpdateDay Monday
         Should -Invoke Register-ScheduledTask -Times 1 -Exactly -ParameterFilter {

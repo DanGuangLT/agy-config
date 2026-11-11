@@ -12,11 +12,21 @@ function Get-ProfileDefaults {
     }
 }
 
-function Get-I18nText([string]$RepoRoot, [string]$Language) {
+function Get-I18nText([string]$RepoRoot, [string]$Language = 'en') {
+    # All user-facing script text is English (scripts/i18n/en.json); other files are optional.
     $dir = Join-Path $RepoRoot 'scripts\i18n'
     $file = Join-Path $dir ($Language + '.json')
     if (-not $Language -or -not (Test-Path $file)) { $file = Join-Path $dir 'en.json' }
     Read-JsonFile $file @{}
+}
+
+function Get-LanguageName([string]$Code) {
+    # English name of a language code, e.g. vi -> Vietnamese; unknown codes are returned as given.
+    try {
+        $c = [Globalization.CultureInfo]::GetCultureInfo($Code)
+        if ($c -and $c.EnglishName -and $c.EnglishName -notmatch '^Unknown') { return ($c.EnglishName -replace '\s*\(.*\)$', '') }
+    } catch { }
+    return $Code
 }
 
 function Get-Profile([string]$RepoRoot, [string]$Name) {
@@ -52,7 +62,7 @@ function New-ProfileFromTemplate([string]$RepoRoot, [string]$Name, [string]$Lang
     $data.language = $Language
     $data.projectMap = @{ tool = $ProjectMapTool }
     Write-JsonFile $json $data
-    $rule = (Get-I18nText $RepoRoot $Language).languageRule
+    $rule = (Get-I18nText $RepoRoot 'en').languageRule -f (Get-LanguageName $Language)
     $gm = Join-Path $dst 'GEMINI.profile.md'
     Write-TextFile $gm (((Read-TextFile $gm) -replace '\{\{LANGUAGE_RULE\}\}', $rule.Replace('$', '$$')))
     return $dst

@@ -42,18 +42,50 @@ function Merge-ThreeWaySet([string[]]$Repo, [string[]]$Base, [string[]]$Current)
     @($repoSet + $added) | Where-Object { $removed -notcontains $_ } | Sort-Object -Unique
 }
 
-function Enter-RunLock([string]$Name, [int]$StaleMinutes = 30) {
-    $p = Get-StateFile ($Name + '.lock')
-    if (Test-Path $p) {
-        $lock = Read-JsonFile $p @{}
-        $t = [datetime]::MinValue
-        $fresh = [datetime]::TryParse([string]$lock.time, [ref]$t) -and $t -gt (Get-Date).AddMinutes(-$StaleMinutes)
-        if ($fresh) { return $false }
-    }
-    Write-JsonFile $p @{ pid = $PID; time = (Get-Date).ToString('o') }
+function Test-LockLive($Lock, [int]$StaleMinutes) {
+    $t = [datetime]::MinValue
+    if (-not [datetime]::TryParse([string]$Lock.time, [ref]$t) -or $t -lt (Get-Date).AddMinutes(-$StaleMinutes)) { return $false }
+    if ($Lock.pid -and -not (Get-Process -Id ([int]$Lock.pid) -ErrorAction SilentlyContinue)) { return $false }
     return $true
 }
-function Exit-RunLock([string]$Name) { Remove-Item (Get-StateFile ($Name + '.lock')) -Force -ErrorAction SilentlyContinue }
+
+$script:LockDepth = @{}
+
+function Enter-RunLock([string]$Name, [int]$StaleMinutes = 30, [int]$WaitSeconds = 0) {
+    # Atomic (CreateNew), reentrant for this process, stale when old or when its process is gone.
+    $p = Get-StateFile ($Name + '.lock')
+    $dir = Split-Path -Parent $p
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+    $deadline = (Get-Date).AddSeconds($WaitSeconds)
+    while ($true) {
+        if (Test-Path $p) {
+            $lock = Read-JsonFile $p @{}
+            if ([int]$lock.pid -eq $PID) { $script:LockDepth[$p] = 1 + [int]$script:LockDepth[$p]; return $true }
+            if (-not (Test-LockLive $lock $StaleMinutes)) { Remove-Item $p -Force -ErrorAction SilentlyContinue }
+        }
+        try {
+            $fs = [IO.File]::Open($p, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+            $bytes = [Text.Encoding]::UTF8.GetBytes((Format-Json @{ pid = $PID; time = (Get-Date).ToString('o') }))
+            $fs.Write($bytes, 0, $bytes.Length)
+            $fs.Close()
+            $script:LockDepth[$p] = 1
+            return $true
+        } catch [System.IO.IOException] { }
+        if ((Get-Date) -ge $deadline) { return $false }
+        Start-Sleep -Milliseconds 500
+    }
+}
+function Exit-RunLock([string]$Name) {
+    # Releases one level; the file goes away only when this process leaves its outermost hold.
+    $p = Get-StateFile ($Name + '.lock')
+    if (-not (Test-Path $p)) { return }
+    $lock = Read-JsonFile $p @{}
+    if ([int]$lock.pid -ne $PID) { return }
+    $depth = [int]$script:LockDepth[$p] - 1
+    if ($depth -gt 0) { $script:LockDepth[$p] = $depth; return }
+    $script:LockDepth.Remove($p)
+    Remove-Item $p -Force -ErrorAction SilentlyContinue
+}
 
 function Test-Debounce([string]$Name, [int]$Minutes) {
     $p = Get-StateFile ($Name + '.last')

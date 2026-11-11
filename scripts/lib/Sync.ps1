@@ -1,5 +1,6 @@
 # Machine -> repo. Spec section 6.3. ASCII-only file.
-# Return codes: 0 done/skipped, 2 secret found (nothing committed), 3 conflict (pushed to sync/* branch), 4 push failed.
+# Return codes: 0 done/skipped, 2 secret found (nothing committed, edits kept), 3 conflict (sync/* branch),
+# 4 push failed, 5 repo busy (merge/rebase in progress, not on main, or unmerged paths).
 
 function Merge-ThreeWayText([string]$Repo, [string]$Base, [string]$Current) {
     # Returns @{ Text; Changed; Conflict }.
@@ -19,11 +20,35 @@ function Get-RepoChangedFiles([string]$RepoRoot) {
     }
 }
 
-function Undo-RepoChanges([string]$RepoRoot, $Changes) {
-    foreach ($c in $Changes) {
-        if ($c.Status -eq '??') { Remove-Item (Join-Path $RepoRoot $c.Path) -Force -ErrorAction SilentlyContinue }
-        else { Invoke-Git $RepoRoot @('checkout', '--', $c.Path) | Out-Null }
+function Get-ManagedPaths([string]$ProfileName, [bool]$IsOwner) {
+    # The only paths sync ever stages. Anything else in the clone (scripts, graphify-out, notes) is left alone.
+    $paths = @('profiles/' + $ProfileName + '/')
+    if ($IsOwner) { $paths += @('core/GEMINI.core.md', 'core/permissions.json', 'core/sources.json', 'core/sources.lock.json', 'THIRD_PARTY.md') }
+    return $paths
+}
+
+function Test-ManagedPath([string]$Path, [string[]]$Managed) {
+    foreach ($m in $Managed) {
+        if ($m.EndsWith('/')) { if ($Path.StartsWith($m)) { return $true } }
+        elseif ($Path -eq $m) { return $true }
     }
+    return $false
+}
+
+function Get-RepoBusyReason([string]$RepoRoot) {
+    # Sync must never touch a clone that a person (or agy) is working in.
+    $branch = ''
+    try { $branch = (Invoke-Git $RepoRoot @('symbolic-ref', '--quiet', '--short', 'HEAD')).Trim() } catch { }
+    if ($branch -ne 'main') { return "the clone is on '$branch', not main" }
+    foreach ($marker in 'MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply') {
+        $gp = ''
+        try { $gp = (Invoke-Git $RepoRoot @('rev-parse', '--git-path', $marker)).Trim() } catch { }
+        if ($gp -and (Test-Path (Join-Path $RepoRoot $gp))) { return "a $marker is in progress" }
+    }
+    $unmerged = ''
+    try { $unmerged = (Invoke-Git $RepoRoot @('diff', '--name-only', '--diff-filter=U')).Trim() } catch { }
+    if ($unmerged) { return 'there are unmerged files' }
+    return $null
 }
 
 function Save-SyncCapture {
@@ -64,8 +89,15 @@ function Save-SyncCapture {
     $profLock = if ($Prof.Lock -is [hashtable]) { $Prof.Lock } else { @{} }
     $known = @(Get-SourceList $RepoRoot $Prof)
     $knownNames = @($known | ForEach-Object { @($_.provides) + @($_.skills | ForEach-Object { $_.name }) + @($_.plugin) })
+    # Names apply already managed or already saw in the skills CLI lock: never re-import them (a removal
+    # in progress must not come back).
+    $managedNames = @()
+    if ($Applied.sourceDefs -is [hashtable]) {
+        foreach ($d in $Applied.sourceDefs.Values) { if ($d) { $managedNames += @($d.provides) + @($d.skills | ForEach-Object { $_.name }) + @($d.plugin) } }
+    }
+    $seenSkillLock = @($Applied.skillLockNames)
     foreach ($entry in @(ConvertFrom-SkillLock $inv.SkillLock $null)) {
-        $newSkills = @($entry.skills | Where-Object { $knownNames -notcontains $_.name -and $inv.Skills -contains $_.name })
+        $newSkills = @($entry.skills | Where-Object { $knownNames -notcontains $_.name -and $managedNames -notcontains $_.name -and $seenSkillLock -notcontains $_.name -and $inv.Skills -contains $_.name })
         if ($newSkills.Count -eq 0) { continue }
         $existing = $profSources | Where-Object { $_.id -eq $entry.id } | Select-Object -First 1
         if ($existing) {
@@ -79,7 +111,7 @@ function Save-SyncCapture {
         $profLock[$entry.id] = Get-GitHeadSha $entry.repo
     }
     foreach ($pl in @($inv.Plugins)) {
-        if (-not $pl.source -or $pl.source -eq 'antigravity' -or $knownNames -contains $pl.name) { continue }
+        if (-not $pl.source -or $pl.source -eq 'antigravity' -or $knownNames -contains $pl.name -or $managedNames -contains $pl.name) { continue }
         [void]$profSources.Add(@{ id = $pl.name; type = 'marketplace'; plugin = $pl.name; marketplace = $pl.source; provides = @($pl.name) })
         $profLock[$pl.name] = $pl.version
     }
@@ -161,10 +193,12 @@ function Invoke-Sync {
     $machine = Get-MachineState
     if (-not $machine.profile) { & $log 'no profile configured for this machine' 'WARN'; return 0 }
     $isOwner = $machine.role -eq 'owner'
-    if (-not (Enter-RunLock 'sync')) { & $log 'another sync is running; skipped'; return 0 }
+    if (-not (Enter-RunLock 'config')) { & $log 'another apply/sync is running; skipped'; return 0 }
     try {
         $prof = Get-Profile $RepoRoot $machine.profile
         if (-not $Force -and -not $CaptureOnly -and -not (Test-Debounce 'sync' ([int]$prof.sync.debounceMinutes))) { return 0 }
+        $busy = Get-RepoBusyReason $RepoRoot
+        if ($busy) { & $log "skipped: $busy" 'WARN'; return 5 }
 
         $publish = $isOwner -and -not $CaptureOnly
         if ($publish) {
@@ -175,21 +209,48 @@ function Invoke-Sync {
         $cap = Save-SyncCapture -RepoRoot $RepoRoot -Machine $machine -Prof $prof -Applied (Get-AppliedState)
         if (-not $publish) { & $log 'captured local changes (no commit on this machine)'; return 0 }
 
-        $changes = @(Get-RepoChangedFiles $RepoRoot)
-        if ($changes.Count -eq 0) { Register-Run 'sync'; return 0 }
+        $managed = Get-ManagedPaths $prof.name $isOwner
+        $changes = @(Get-RepoChangedFiles $RepoRoot | Where-Object { Test-ManagedPath $_.Path $managed })
+        if ($changes.Count -eq 0) {
+            # Nothing new, but an earlier commit may still be waiting to be pushed (offline last time).
+            $ahead = 0
+            try { $ahead = [int](Invoke-Git $RepoRoot @('rev-list', '--count', 'origin/main..HEAD')).Trim() } catch { }
+            if ($ahead -gt 0) {
+                try { Invoke-Git $RepoRoot @('push', '--quiet', 'origin', 'HEAD:main') | Out-Null; & $log "pushed $ahead earlier commit(s)" }
+                catch { & $log "push failed: $($_.Exception.Message)" 'ERROR'; Register-Run 'sync'; return 4 }
+            }
+            Register-Run 'sync'
+            return 0
+        }
 
         $allowFile = Join-Path $RepoRoot 'tests\fixtures\allowed-emails.txt'
         $allowed = if (Test-Path $allowFile) { @(Get-Content $allowFile | Where-Object { $_ -and -not $_.StartsWith('#') }) } else { @() }
         $files = @($changes | Where-Object { $_.Status -notmatch 'D' } | ForEach-Object { Join-Path $RepoRoot $_.Path })
         $hits = @(Find-Secrets $files -AllowedEmails $allowed)
         if ($hits.Count -gt 0) {
+            # Keep the captured edits (never lose the user's text); just do not publish them.
             foreach ($h in $hits) { & $log ("possible secret ({0}) in {1}:{2}; nothing committed" -f $h.Rule, $h.Path, $h.Line) 'ERROR' }
-            Undo-RepoChanges $RepoRoot $changes
+            Register-Run 'sync'
             return 2
         }
 
+        # A conflict already pushed for exactly this text is not pushed again.
+        $conflictState = Join-Path (Get-AgyPaths).StateDir 'sync-conflict.json'
+        $conflictHash = $null
+        if ($cap.Conflict) {
+            $sha = [Security.Cryptography.SHA256]::Create()
+            $blob = ($changes | Sort-Object { $_.Path } | ForEach-Object { $_.Path + "`n" + (Read-TextFile (Join-Path $RepoRoot $_.Path)) }) -join "`n--`n"
+            $conflictHash = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($blob))) -replace '-', ''
+            $prev = Read-JsonFile $conflictState @{}
+            if ($prev.hash -eq $conflictHash) {
+                & $log "conflict still waiting for review on $($prev.branch); not pushed again" 'WARN'
+                Register-Run 'sync'
+                return 3
+            }
+        }
+
         $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm'
-        Invoke-Git $RepoRoot @('add', '-A') | Out-Null
+        Invoke-Git $RepoRoot (@('add', '-A', '--') + @($changes | ForEach-Object { $_.Path })) | Out-Null
         $git = Resolve-Tool git
         if ((Invoke-External $git @('diff', '--cached', '--quiet') $RepoRoot).ExitCode -eq 0) { Register-Run 'sync'; return 0 }
         Invoke-Git $RepoRoot @('commit', '--quiet', '-m', "sync($($prof.name)): $stamp") | Out-Null
@@ -203,16 +264,20 @@ function Invoke-Sync {
         if ($conflictBranch) {
             Invoke-Git $RepoRoot @('push', '--quiet', 'origin', ('HEAD:refs/heads/' + $conflictBranch)) | Out-Null
             Invoke-Git $RepoRoot @('fetch', '--quiet', 'origin') | Out-Null
-            Invoke-Git $RepoRoot @('reset', '--quiet', '--hard', 'origin/main') | Out-Null
+            # --keep moves main back without touching unrelated uncommitted work in the clone.
+            Invoke-Git $RepoRoot @('reset', '--quiet', '--keep', 'origin/main') | Out-Null
+            if ($conflictHash) { Write-JsonFile $conflictState @{ hash = $conflictHash; branch = $conflictBranch } }
             & $log "changes conflict with main; pushed them to branch $conflictBranch for review" 'WARN'
+            Register-Run 'sync'
             return 3
         }
         try { Invoke-Git $RepoRoot @('push', '--quiet', 'origin', 'HEAD:main') | Out-Null }
-        catch { & $log "push failed: $($_.Exception.Message)" 'ERROR'; return 4 }
+        catch { & $log "push failed: $($_.Exception.Message)" 'ERROR'; Register-Run 'sync'; return 4 }
+        Remove-Item $conflictState -Force -ErrorAction SilentlyContinue
         Register-Run 'sync'
         & $log "synced: $($changes.Count) changed file(s)"
         return 0
     } finally {
-        Exit-RunLock 'sync'
+        Exit-RunLock 'config'
     }
 }

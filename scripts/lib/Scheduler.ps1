@@ -21,7 +21,7 @@ function Register-AgyTasks {
 
     $tasks = @(@{ Name = 'agy-config-apply'; Script = 'apply.ps1'; Triggers = @($logon) })
     if ($Role -eq 'owner') {
-        $tasks += @{ Name = 'agy-config-sync'; Script = 'sync.ps1'; Triggers = @((New-ScheduledTaskTrigger -Daily -At '12:00'), $logon) }
+        $tasks += @{ Name = 'agy-config-sync'; Script = 'sync.ps1'; Triggers = @(New-ScheduledTaskTrigger -Daily -At '12:00') }
         $tasks += @{ Name = 'agy-config-update'; Script = 'update.ps1'; Triggers = @(New-ScheduledTaskTrigger -Weekly -DaysOfWeek $UpdateDay -At '10:00') }
     } else {
         foreach ($n in 'agy-config-sync', 'agy-config-update') {

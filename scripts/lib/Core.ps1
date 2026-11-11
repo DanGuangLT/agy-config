@@ -162,21 +162,32 @@ function ConvertTo-CommandLineArg([string]$Arg) {
     $sb.ToString()
 }
 
-function Invoke-External([string]$Exe, [string[]]$Arguments = @(), [string]$WorkingDirectory) {
+function Invoke-External([string]$Exe, [string[]]$Arguments = @(), [string]$WorkingDirectory, [int]$TimeoutSeconds = 600) {
+    # Never interactive: stdin is closed, git/credential prompts are off, and the process tree is
+    # killed after $TimeoutSeconds. Background runs (scheduled tasks, the Stop hook) must not hang.
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $Exe
     $psi.Arguments = (@($Arguments) | ForEach-Object { ConvertTo-CommandLineArg $_ }) -join ' '
     $psi.UseShellExecute = $false
+    $psi.RedirectStandardInput = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.CreateNoWindow = $true
     $psi.StandardOutputEncoding = [Text.Encoding]::UTF8
     $psi.StandardErrorEncoding = [Text.Encoding]::UTF8
+    $psi.EnvironmentVariables['GIT_TERMINAL_PROMPT'] = '0'
+    $psi.EnvironmentVariables['GCM_INTERACTIVE'] = 'never'
     if ($WorkingDirectory) { $psi.WorkingDirectory = $WorkingDirectory }
     try {
         $p = [System.Diagnostics.Process]::Start($psi)
+        $p.StandardInput.Close()
         $out = $p.StandardOutput.ReadToEndAsync()
         $err = $p.StandardError.ReadToEndAsync()
+        if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
+            & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null
+            [void]$p.WaitForExit(5000)
+            return @{ ExitCode = -1; StdOut = ''; StdErr = "timeout after $TimeoutSeconds s: $Exe" }
+        }
         $p.WaitForExit()
         return @{ ExitCode = $p.ExitCode; StdOut = $out.Result; StdErr = $err.Result }
     } catch {

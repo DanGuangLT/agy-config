@@ -7,9 +7,18 @@ function Update-ConfigRepo([string]$RepoRoot) {
         Invoke-Git $RepoRoot @('pull', '--quiet', '--rebase', '--autostash', 'origin', 'main') | Out-Null
         return @{ Ok = $true; Error = '' }
     } catch {
+        $err = $_.Exception.Message
+        # Abort only a rebase that is actually in progress (never another process's, never on lock errors).
+        $inRebase = $false
+        foreach ($d in 'rebase-merge', 'rebase-apply') {
+            try {
+                $gp = (Invoke-Git $RepoRoot @('rev-parse', '--git-path', $d)).Trim()
+                if ($gp -and (Test-Path (Join-Path $RepoRoot $gp))) { $inRebase = $true }
+            } catch { }
+        }
         $git = Resolve-Tool git
-        if ($git) { Invoke-External $git @('rebase', '--abort') $RepoRoot | Out-Null }
-        return @{ Ok = $false; Error = $_.Exception.Message }
+        if ($inRebase -and $git) { Invoke-External $git @('rebase', '--abort') $RepoRoot | Out-Null }
+        return @{ Ok = $false; Error = $err }
     }
 }
 

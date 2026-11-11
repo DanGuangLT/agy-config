@@ -1,6 +1,6 @@
 {
-  "languageRule": "## Language\n\nAlways reply to the user in English: short, clear sentences. Code, comments, commit messages and pull requests are written in English.",
-  "msgApplyFailed": "Install did not finish. Read the newest log in {0}, fix the problem, then run install again.",
+  "languageRule": "## Language\n\nAlways reply to the user in {0}: short, clear sentences. Keep file names, commands and technical terms as they are, with a short explanation when needed. Code, comments, commit messages and pull requests are written in English.",
+  "msgApplyFailed": "Some parts did not install. Read the newest log in {0}. The scheduled apply task retries at every logon; you can also run install again.",
   "msgBackup": "Your previous agy configuration was backed up to: {0}",
   "msgBadProfileName": "'{0}' is not a valid profile name. Use lowercase letters, digits, '-' or '_'.",
   "msgCancelled": "Cancelled. Nothing was changed.",
@@ -15,7 +15,7 @@
   "msgUninstalled": "Removed the scheduled tasks and the agy-self-config plugin. Installed skills were left in place.",
   "msgWarnTool": "Note: {0} was not found ({1}). Some features need it.",
   "promptConfirm": "Continue? (y/N)",
-  "promptLanguage": "Which language should agy reply in? (en, vi, ... Press Enter for the language of this computer)",
+  "promptLanguage": "Which language should agy reply in? (en, vi, ja, ... Press Enter for English)",
   "promptProfile": "Profile name (existing: {0}). Type an existing name or a new one",
   "promptProjectMap": "Project map tool: press Enter for graphify, type the name of another skill you use, or type none",
   "promptUninstall": "Remove the scheduled tasks and the agy-self-config plugin? (y/N)",

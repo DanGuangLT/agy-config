@@ -119,15 +119,18 @@ Describe 'Invoke-Sync' {
         Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 0
         Get-OriginFile $w 'profiles\lianharman\GEMINI.profile.md' | Should -Not -Match 'old hand-written rules'
     }
-    It 'aborts and discards when a secret is captured' {
+    It 'blocks publishing but keeps captured edits when a secret is found' {
         $w = New-SyncWorld
         $a = New-Machine $w 'a'
         $before = Invoke-TestGit $a.Repo @('rev-parse', 'HEAD')
+        # An untracked file that existed before this sync must survive it.
+        Write-TextFile (Join-Path $a.Repo 'profiles\lianharman\notes.md') 'my notes'
         Set-ProfileRegion ('token: ghp_' + ('Z9y8' * 8))
         Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 2
         Invoke-TestGit $a.Repo @('rev-parse', 'HEAD') | Should -Be $before
-        Invoke-TestGit $a.Repo @('status', '--porcelain') | Should -BeNullOrEmpty
         Invoke-TestGit $w.Origin @('rev-parse', 'main') | Should -Be $before
+        Read-TextFile (Join-Path $a.Repo 'profiles\lianharman\GEMINI.profile.md') | Should -Match 'token: ghp_'
+        Test-Path (Join-Path $a.Repo 'profiles\lianharman\notes.md') | Should -BeTrue
     }
     It 'follower captures but does not commit' {
         $w = New-SyncWorld
@@ -141,16 +144,18 @@ Describe 'Invoke-Sync' {
     It 'second run exits while lock held' {
         $w = New-SyncWorld
         $a = New-Machine $w 'a'
-        Enter-RunLock 'sync' | Should -BeTrue
-        Add-MachinePermission 'command(npm test)'
-        Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 0
-        Get-OriginFile $w 'profiles\lianharman\permissions.json' | Should -Not -Match 'npm test'
-        Exit-RunLock 'sync'
+        $other = Start-Process powershell -ArgumentList '-NoProfile -Command Start-Sleep -Seconds 60' -WindowStyle Hidden -PassThru
+        try {
+            Write-JsonFile (Join-Path (Get-AgyPaths).StateDir 'config.lock') @{ pid = $other.Id; time = (Get-Date).ToString('o') }
+            Add-MachinePermission 'command(npm test)'
+            Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 0
+            Get-OriginFile $w 'profiles\lianharman\permissions.json' | Should -Not -Match 'npm test'
+        } finally { Stop-Process -Id $other.Id -Force -ErrorAction SilentlyContinue }
     }
     It 'takes over stale lock' {
         $w = New-SyncWorld
         $a = New-Machine $w 'a'
-        Write-JsonFile (Join-Path (Get-AgyPaths).StateDir 'sync.lock') @{ pid = 1; time = (Get-Date).AddMinutes(-45).ToString('o') }
+        Write-JsonFile (Join-Path (Get-AgyPaths).StateDir 'config.lock') @{ pid = 1; time = (Get-Date).AddMinutes(-45).ToString('o') }
         Add-MachinePermission 'command(npm test)'
         Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 0
         Get-OriginFile $w 'profiles\lianharman\permissions.json' | Should -Match 'npm test'
@@ -174,6 +179,65 @@ Describe 'Invoke-Sync' {
         $branches = Invoke-TestGit $w.Origin @('branch', '--list', 'sync/*')
         $branches | Should -Match 'sync/lianharman-'
         Get-OriginFile $w 'profiles\lianharman\GEMINI.profile.md' | Should -Match 'Rule from A\.'
+    }
+    It 'refuses while a merge is in progress' {
+        $w = New-SyncWorld
+        $a = New-Machine $w 'a'
+        Write-TextFile (Join-Path $a.Repo '.git\MERGE_HEAD') ((Invoke-TestGit $a.Repo @('rev-parse', 'HEAD')) + "`n")
+        Add-MachinePermission 'command(npm test)'
+        Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 5
+        Get-OriginFile $w 'profiles\lianharman\permissions.json' | Should -Not -Match 'npm test'
+        Read-TextFile (Join-Path $a.Repo 'profiles\lianharman\permissions.json') | Should -Not -Match 'npm test'
+    }
+    It 'refuses when the clone is not on main' {
+        $w = New-SyncWorld
+        $a = New-Machine $w 'a'
+        Invoke-TestGit $a.Repo @('checkout', '-q', '-b', 'topic') | Out-Null
+        Add-MachinePermission 'command(npm test)'
+        Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 5
+        Get-OriginFile $w 'profiles\lianharman\permissions.json' | Should -Not -Match 'npm test'
+    }
+    It 'does not publish files outside managed paths' {
+        $w = New-SyncWorld
+        $a = New-Machine $w 'a'
+        Write-TextFile (Join-Path $a.Repo 'graphify-out\graph.json') '{}'
+        Write-TextFile (Join-Path $a.Repo 'scripts\half-done.ps1') 'work in progress'
+        Add-MachinePermission 'command(npm test)'
+        Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 0
+        Get-OriginFile $w 'profiles\lianharman\permissions.json' | Should -Match 'npm test'
+        Get-OriginFile $w 'scripts\half-done.ps1' | Should -BeNullOrEmpty
+        Get-OriginFile $w 'graphify-out\graph.json' | Should -BeNullOrEmpty
+        Test-Path (Join-Path $a.Repo 'scripts\half-done.ps1') | Should -BeTrue
+    }
+    It 'does not push another conflict branch for the same conflicting text' {
+        $w = New-SyncWorld
+        $a = New-Machine $w 'a'
+        $b = New-Machine $w 'b'
+        Use-Machine $a; Set-ProfileRegion "Rule from A."
+        Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 0
+        Use-Machine $b; Set-ProfileRegion "Rule from B."
+        Invoke-Sync -RepoRoot $b.Repo -Force | Should -Be 3
+        Invoke-Sync -RepoRoot $b.Repo -Force | Should -Be 3
+        @((Invoke-TestGit $w.Origin @('branch', '--list', 'sync/*')) -split "`n" | Where-Object { $_.Trim() }).Count | Should -Be 1
+    }
+    It 'pushes local commits that were not pushed yet' {
+        $w = New-SyncWorld
+        $a = New-Machine $w 'a'
+        Write-TextFile (Join-Path $a.Repo 'profiles\lianharman\permissions.json') "[`n  `"command(make)`"`n]`n"
+        Invoke-TestGit $a.Repo @('commit', '-q', '-am', 'local only') | Out-Null
+        $ap = Get-AppliedState; $ap.permissions = @($script:corePerms + 'command(make)'); Set-AppliedState $ap
+        Add-MachinePermission 'command(make)'
+        Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 0
+        Get-OriginFile $w 'profiles\lianharman\permissions.json' | Should -Match 'command\(make\)'
+    }
+    It 'does not re-add a skills CLI source the user removed' {
+        $w = New-SyncWorld
+        $a = New-Machine $w 'a'
+        Write-JsonFile (Get-AgyPaths).SkillLock @{ version = 3; skills = @{ 'cool-skill' = @{ source = 'someone/skills'; sourceType = 'github'; sourceUrl = 'https://github.com/someone/skills.git'; skillPath = 'skills/cool-skill/SKILL.md' } } }
+        Write-TextFile (Join-Path (Get-AgyPaths).SkillsDir 'cool-skill\SKILL.md') "---`nname: cool-skill`ndescription: x`n---`n"
+        $ap = Get-AppliedState; $ap.skillLockNames = @('cool-skill'); Set-AppliedState $ap
+        Invoke-Sync -RepoRoot $a.Repo -Force | Should -Be 0
+        Get-OriginFile $w 'profiles\lianharman\sources.json' | Should -Not -Match 'cool-skill'
     }
     It 'unknown skill reported not pushed' {
         $w = New-SyncWorld

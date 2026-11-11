@@ -85,6 +85,22 @@ Describe 'Invoke-External' {
     It 'captures stdout' {
         (Invoke-External 'cmd.exe' @('/c', 'echo hi')).StdOut.Trim() | Should -Be 'hi'
     }
+    It 'closes stdin so a prompt cannot wait forever' {
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        $r = Invoke-External 'cmd.exe' @('/c', 'set /p x=') -TimeoutSeconds 20
+        $sw.Elapsed.TotalSeconds | Should -BeLessThan 10
+        $r.ExitCode | Should -Not -Be -1
+    }
+    It 'kills the process after the timeout' {
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        $r = Invoke-External 'powershell.exe' @('-NoProfile', '-Command', 'Start-Sleep -Seconds 30') -TimeoutSeconds 2
+        $sw.Elapsed.TotalSeconds | Should -BeLessThan 15
+        $r.ExitCode | Should -Be -1
+        $r.StdErr | Should -Match 'timeout'
+    }
+    It 'turns off git and credential prompts' {
+        (Invoke-External 'cmd.exe' @('/c', 'echo %GIT_TERMINAL_PROMPT%-%GCM_INTERACTIVE%')).StdOut.Trim() | Should -Be '0-never'
+    }
 }
 
 Describe 'Resolve-Tool' {

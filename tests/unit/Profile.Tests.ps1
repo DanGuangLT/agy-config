@@ -28,7 +28,7 @@ Describe 'Get-Profile' {
     It 'keeps values that are set' {
         $p = Get-Profile $script:repoRoot 'lianharman'
         $p.language | Should -Be 'vi'
-        $p.GeminiProfileText | Should -Match ([char]0x1EBF)
+        $p.GeminiProfileText | Should -Match 'Always reply to the user in Vietnamese'
     }
 }
 
@@ -36,17 +36,19 @@ Describe 'New-ProfileFromTemplate' {
     It 'writes language rule' {
         $r = New-FakeRepo
         $path = New-ProfileFromTemplate $r 'an' 'vi' 'none'
-        $expected = (Read-JsonFile (Join-Path $r 'scripts\i18n\vi.json') @{}).languageRule
-        (Read-TextFile (Join-Path $path 'GEMINI.profile.md')).Trim() | Should -BeExactly $expected
+        (Read-TextFile (Join-Path $path 'GEMINI.profile.md')) | Should -Match 'Always reply to the user in Vietnamese'
+        Test-Path (Join-Path $r 'scripts\i18n\vi.json') | Should -BeFalse
         $p = Get-Profile $r 'an'
         $p.name | Should -Be 'an'
         $p.language | Should -Be 'vi'
         $p.projectMap.tool | Should -Be 'none'
     }
-    It 'falls back to English for unknown language' {
+    It 'names any language in English' {
         $r = New-FakeRepo
         $path = New-ProfileFromTemplate $r 'kim' 'ko' 'graphify'
-        (Read-TextFile (Join-Path $path 'GEMINI.profile.md')) | Should -Match 'Always reply to the user in English'
+        (Read-TextFile (Join-Path $path 'GEMINI.profile.md')) | Should -Match 'Always reply to the user in Korean'
+        $path2 = New-ProfileFromTemplate $r 'zz' 'not-a-language' 'graphify'
+        (Read-TextFile (Join-Path $path2 'GEMINI.profile.md')) | Should -Match 'Always reply to the user in not-a-language'
     }
     It 'refuses to overwrite an existing profile' {
         $r = New-FakeRepo

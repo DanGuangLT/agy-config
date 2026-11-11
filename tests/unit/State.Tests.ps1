@@ -59,12 +59,38 @@ Describe 'State' {
     }
 
     Describe 'Run lock' {
+        BeforeAll {
+            # A live process that is not us, standing in for another sync/apply run.
+            $script:other = Start-Process powershell -ArgumentList '-NoProfile -Command Start-Sleep -Seconds 120' -WindowStyle Hidden -PassThru
+        }
+        AfterAll { Stop-Process -Id $script:other.Id -Force -ErrorAction SilentlyContinue }
+
         It 'second run exits while lock held' {
-            Enter-RunLock 'sync' | Should -BeTrue
+            Write-JsonFile (Join-Path (Get-AgyPaths).StateDir 'sync.lock') @{ pid = $script:other.Id; time = (Get-Date).ToString('o') }
             Enter-RunLock 'sync' | Should -BeFalse
-            Exit-RunLock 'sync'
+        }
+        It 'is reentrant for the same process' {
+            Enter-RunLock 'sync' | Should -BeTrue
             Enter-RunLock 'sync' | Should -BeTrue
             Exit-RunLock 'sync'
+        }
+        It 'never deletes a lock owned by another process' {
+            $p = Join-Path (Get-AgyPaths).StateDir 'sync.lock'
+            Write-JsonFile $p @{ pid = $script:other.Id; time = (Get-Date).ToString('o') }
+            Exit-RunLock 'sync'
+            Test-Path $p | Should -BeTrue
+        }
+        It 'takes over a fresh lock whose process is gone' {
+            Write-JsonFile (Join-Path (Get-AgyPaths).StateDir 'sync.lock') @{ pid = 999999; time = (Get-Date).ToString('o') }
+            Enter-RunLock 'sync' | Should -BeTrue
+            Exit-RunLock 'sync'
+        }
+        It 'waits for a lock to be released' {
+            $p = Join-Path (Get-AgyPaths).StateDir 'sync.lock'
+            Write-JsonFile $p @{ pid = $script:other.Id; time = (Get-Date).ToString('o') }
+            $sw = [Diagnostics.Stopwatch]::StartNew()
+            Enter-RunLock 'sync' -WaitSeconds 2 | Should -BeFalse
+            $sw.Elapsed.TotalSeconds | Should -BeGreaterOrEqual 1.5
         }
         It 'takes over stale lock' {
             $p = Join-Path (Get-AgyPaths).StateDir 'sync.lock'

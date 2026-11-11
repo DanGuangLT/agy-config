@@ -66,14 +66,22 @@ Describe 'Invoke-Install' {
         $p.language | Should -Be 'en'
         $p.projectMap.tool | Should -Be 'none'
     }
-    It 'install picks vi prompts for vi culture' {
+    It 'uses English prompts whatever the computer language' {
         $repo = New-InstallFixture
         Mock Get-Culture { [pscustomobject]@{ Name = 'vi-VN' } }
-        $vi = Read-JsonFile (Join-Path $repo 'scripts\i18n\vi.json') @{}
+        $en = Read-JsonFile (Join-Path $repo 'scripts\i18n\en.json') @{}
         Mock Read-Host { 'n' }
         Invoke-Install -RepoRoot $repo -ProfileName lianharman | Should -Be 1
-        Should -Invoke Read-Host -ParameterFilter { $Prompt -eq $vi.promptConfirm }
+        Should -Invoke Read-Host -ParameterFilter { $Prompt -eq $en.promptConfirm }
         Should -Invoke Invoke-Apply -Times 0 -Exactly
+    }
+    It 'stores an absolute repo path' {
+        $repo = New-InstallFixture
+        Push-Location (Split-Path -Parent $repo)
+        try { Invoke-Install -RepoRoot ('.\' + (Split-Path -Leaf $repo)) -ProfileName lianharman -Yes | Should -Be 0 }
+        finally { Pop-Location }
+        (Get-MachineState).repoPath | Should -Be $repo
+        Should -Invoke Register-AgyTasks -ParameterFilter { $RepoRoot -eq $repo }
     }
     It 'asks for language and project map when creating a profile interactively' {
         $repo = New-InstallFixture
@@ -95,11 +103,11 @@ Describe 'Invoke-Install' {
         (Get-ChildItem (Join-Path $repo 'profiles')).Count | Should -Be $before
         Should -Invoke Register-AgyTasks -Times 2 -Exactly
     }
-    It 'returns 1 and skips tasks when apply fails' {
+    It 'returns 1 but still registers tasks when apply fails' {
         $repo = New-InstallFixture
         Mock Invoke-Apply { 1 }
         Invoke-Install -RepoRoot $repo -ProfileName lianharman -Yes | Should -Be 1
-        Should -Invoke Register-AgyTasks -Times 0 -Exactly
+        Should -Invoke Register-AgyTasks -Times 1 -Exactly
     }
 }
 

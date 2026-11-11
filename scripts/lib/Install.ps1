@@ -7,8 +7,6 @@ $script:ToolHints = @{
     python = 'winget install Python.Python.3.13'
 }
 
-function Get-UiLanguage { if ((Get-Culture).Name -like 'vi*') { 'vi' } else { 'en' } }
-
 function Test-YesAnswer([string]$Answer, $Texts) {
     $a = ([string]$Answer).Trim().ToLowerInvariant()
     return @($Texts.yesAnswers) -contains $a
@@ -40,8 +38,8 @@ function Invoke-Install {
         [switch]$Yes,
         [switch]$NoTasks
     )
-    $ui = Get-UiLanguage
-    $t = Get-I18nText $RepoRoot $ui
+    $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).ProviderPath
+    $t = Get-I18nText $RepoRoot 'en'
 
     foreach ($tool in 'git', 'agy') {
         if (-not (Resolve-Tool $tool)) { Write-Host ($t.msgMissingTool -f $tool, $script:ToolHints[$tool]); return 1 }
@@ -60,7 +58,7 @@ function Invoke-Install {
     $creating = -not (Test-Path (Join-Path $profDir 'profile.json'))
     if ($creating) {
         if (-not $Language) {
-            $Language = $ui
+            $Language = 'en'
             if (-not $Yes) { $a = Read-Host -Prompt $t.promptLanguage; if ($a) { $Language = $a.Trim().ToLowerInvariant() } }
         }
         if (-not $ProjectMapTool) {
@@ -84,8 +82,9 @@ function Invoke-Install {
     Set-MachineState @{ profile = $ProfileName; role = $role; repoPath = $RepoRoot }
 
     $code = Invoke-Apply -RepoRoot $RepoRoot -SkipCapture
-    if ($code -ne 0) { Write-Host ($t.msgApplyFailed -f (Get-AgyPaths).LogDir); return 1 }
+    if ($code -ne 0) { Write-Host ($t.msgApplyFailed -f (Get-AgyPaths).LogDir) }
 
+    # Register the tasks even after a partial failure: apply retries at every logon.
     if (-not $NoTasks) {
         $prof = Get-Profile $RepoRoot $ProfileName
         Register-AgyTasks -RepoRoot $RepoRoot -Role $role -UpdateDay $prof.update.day
@@ -93,6 +92,7 @@ function Invoke-Install {
     if (Test-Path (Join-Path $backup 'GEMINI.md')) { Write-Host ($t.msgOldGemini -f $ProfileName) }
     Write-Host ($t.msgDone -f $ProfileName, $role, $taskNames)
     Write-Host ($t.msgUninstallHint -f (Join-Path $RepoRoot 'scripts\uninstall.ps1'))
+    if ($code -ne 0) { return 1 }
     return 0
 }
 
@@ -102,7 +102,7 @@ function Invoke-Uninstall {
         [string]$RestoreBackup,
         [switch]$Yes
     )
-    $t = Get-I18nText $RepoRoot (Get-UiLanguage)
+    $t = Get-I18nText $RepoRoot 'en'
     if (-not $Yes) {
         if (-not (Test-YesAnswer (Read-Host -Prompt $t.promptUninstall) $t)) { Write-Host $t.msgCancelled; return 1 }
     }
