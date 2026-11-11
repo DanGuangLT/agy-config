@@ -17,7 +17,7 @@ Các lệnh chạy script bên dưới dùng `powershell -NoProfile -ExecutionPo
 3. Nếu dùng công cụ bản đồ dự án mặc định là graphify, cài Python từ 3.10 trở lên khi cần: `winget install Python.Python.3.13`. Sau đó kiểm tra `python --version`.
 4. Node.js và `npx` là tùy chọn để tìm skill mới bằng `npx skills find`. Máy của bạn không cần GitHub CLI.
 
-Bạn có thể chọn một skill bản đồ dự án khác đã cài, hoặc `none`, thay cho graphify. Nếu chọn graphify mà chưa có Python, trình cài vẫn cài phần còn lại, báo phần còn thiếu, và `apply` sẽ thử lại ở những lần đăng nhập sau.
+Bạn có thể chọn một skill bản đồ dự án khác đã cài, hoặc `none`, thay cho graphify. Nếu chọn graphify mà chưa có Python, trình cài vẫn cài phần còn lại, báo phần còn thiếu, và `apply` sẽ thử lại trong đợt bảo trì hằng tuần sau hoặc khi chạy tay.
 
 ## Cài đặt
 
@@ -32,7 +32,9 @@ Get-Content .\scripts\install.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
-Chọn hoặc tạo profile riêng khi được hỏi. Trình cài hỏi ngôn ngữ trả lời và công cụ bản đồ dự án, sao lưu cấu hình hiện có, hiển thị các việc sẽ làm, rồi hỏi xác nhận trước khi đăng ký tác vụ tự động. Bạn có thể chạy lại an toàn.
+Chọn hoặc tạo profile riêng khi được hỏi. Trình cài hỏi ngôn ngữ trả lời và công cụ bản đồ dự án, hiển thị các việc sẽ làm, hỏi xác nhận, rồi sao lưu và áp dụng cấu hình. Script không đăng ký tác vụ Windows Task Scheduler nào và xóa ba tác vụ do phiên bản cũ tạo: `agy-config-apply`, `agy-config-sync`, `agy-config-update`. Bạn có thể chạy lại an toàn.
+
+Lời nhắc và thông báo của script chỉ dùng tiếng Anh (`scripts/i18n/en.json`). Ngôn ngữ trả lời của profile vẫn tùy chỉnh được; quy tắc được sinh bằng tiếng Anh, ví dụ "Always reply to the user in Vietnamese".
 
 Vai trò được xác định theo từng máy bằng một lần thử đẩy lên `origin` không ghi thay đổi, rồi lưu cục bộ. Máy có quyền đẩy là **owner**: tự sao lưu thay đổi cấu hình và cập nhật nguồn hằng tuần. Máy không có quyền đẩy là **follower**: nhận cấu hình và cập nhật từ `main`, không công bố thay đổi. Clone trực tiếp repo gốc công khai thường khiến bạn thành follower và không có bản sao lưu tự động trên GitHub.
 
@@ -86,21 +88,20 @@ Nội dung bên thứ ba được tải từ nguồn gốc, không lưu trong re
 
 Trò chuyện với agy như bình thường, ví dụ: “Từ giờ hãy giải thích thay đổi trước khi chạy,” “Cài skill X,” hoặc “Tôi sắp chuyển sang máy mới.” Skill `agy-self-config` giúp sửa đúng profile hoặc file nguồn, chạy script và kiểm tra log. Bạn không cần một coding agent khác để bảo trì bộ cấu hình này.
 
-| Khi nào | Mọi máy | Máy owner chạy thêm |
-|---|---|---|
-| Lúc đăng nhập | `agy-config-apply`: nhận cấu hình từ `main` | `agy-config-sync`: thu thay đổi cục bộ |
-| Sau khi agy hoàn tất một lượt | Hook Stop trả lời ngay | Khởi chạy sync ở tiến trình tách rời |
-| Hằng ngày lúc 12:00 | — | `agy-config-sync` |
-| Chủ nhật lúc 10:00 | — | `agy-config-update`: thử cập nhật nguồn gốc và đẩy `update/sources` |
+Khi agy khởi động, hook duy nhất của plugin là `SessionStart` (`agy-config-weekly` → `hooks/on-start.ps1`) kiểm tra `weekly.last` và `weekly-attempt.last` trong `~/.agy-config-state`. Nếu lần bảo trì thành công gần nhất đã cách ít nhất 7 ngày và lần thử gần nhất đã cách ít nhất 1 ngày (hoặc thiếu mốc tương ứng), hook khởi chạy `scripts/maintain.ps1` ẩn ở nền rồi trả về ngay. Nếu chưa đủ điều kiện thì không làm gì. Khi agy đóng, không có tác vụ nền nào chạy, để dành RAM cho game và công việc khác.
 
-Sync chờ ít nhất 10 phút giữa các lần chạy tự động và ngăn chạy chồng nhau. Thay đổi cấu hình của owner đi thẳng lên `main`. Phiên bản nguồn hằng tuần được duyệt qua PR trước khi follower nhận; nguồn cập nhật lỗi được quay lui riêng. Owner dùng các phiên bản đã thử trong bản khóa chờ ở máy mình khi PR chưa được duyệt. Hãy duyệt và merge PR hằng tuần để công bố những phiên bản đó.
+Trên máy owner, bảo trì chạy `apply` (trước hết sync đầy đủ để sao lưu cấu hình máy này, rồi pull và cài đặt), sau đó chạy `update` để thử phiên bản nguồn mới và đẩy `update/sources` cho PR. Máy follower chỉ chạy `apply`. Tuần chỉ được đánh dấu hoàn tất khi mọi bước thành công; nếu lỗi, hệ thống thử lại ở lần khởi động agy tiếp theo sau ít nhất 1 ngày.
+
+Thay đổi qua skill `agy-self-config` vẫn được sao lưu ngay bằng `scripts/sync.ps1 -Force` sau mỗi thay đổi. Thay đổi cấu hình của owner đi thẳng lên `main`. Phiên bản nguồn hằng tuần được duyệt qua PR trước khi follower nhận; nguồn cập nhật lỗi được quay lui riêng. Owner dùng các phiên bản đã thử trong bản khóa chờ ở máy mình khi PR chưa được duyệt. Hãy duyệt và merge PR hằng tuần để công bố những phiên bản đó.
 
 Các lệnh chạy tay trong bản clone:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\apply.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\sync.ps1 -Force
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\update.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\update.ps1 -NoPush
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\maintain.ps1
 ```
 
 `sync` và `update` chỉ công bố thay đổi trên máy owner; `-NoPush` thử cập nhật nguồn tại máy mà không đẩy lên. Quá trình thu cấu hình bỏ qua `trustedWorkspaces`, model đang chọn, tên máy, lịch sử hội thoại, log, cache và skill chưa được phân loại. Phát hiện bí mật sẽ dừng công bố. Vì repo có thể công khai, hãy xem lại quy tắc riêng và nội dung tự viết đã khai báo trước khi chia sẻ.
@@ -134,13 +135,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1 -RestoreBackup 20261111-120000
 ```
 
-Giao diện là `scripts/uninstall.ps1 [-RestoreBackup <stamp>]`. Script gỡ các tác vụ tự động và plugin `agy-self-config`. Skill bên thứ ba vẫn được giữ. Thêm `-RestoreBackup` để khôi phục cấu hình đã lưu ở `~/.agy-config-backup/<stamp>`.
+Giao diện là `scripts/uninstall.ps1 [-RestoreBackup <stamp>]`. Script gỡ plugin `agy-self-config` và các tác vụ Windows Task Scheduler còn sót từ phiên bản cũ. Skill bên thứ ba vẫn được giữ. Thêm `-RestoreBackup` để khôi phục cấu hình đã lưu ở `~/.agy-config-backup/<stamp>`.
 
 ## Xử lý sự cố
 
-- Đọc `~/.agy-config-state/logs` để xem kết quả install, apply, sync và update. Bắt đầu với file mới nhất của script bị lỗi.
+- Đọc `~/.agy-config-state/logs/<apply|sync|update|maintain>-yyyyMMdd.log`. Bắt đầu với file mới nhất của script bị lỗi.
+- Chạy `scripts/maintain.ps1` để bảo trì ngay. Muốn hook chạy lại sớm hơn, xóa `~/.agy-config-state/weekly.last` rồi khởi động agy; vẫn phải đủ 1 ngày kể từ lần thử gần nhất.
 - Xem `~/.agy-config-state/unknown.json` để tìm skill hoặc plugin chưa được phân loại. Nhờ agy khai báo nguồn gốc, đánh dấu là đồ tự viết trong `ownSkills`/`ownPlugins`, hoặc thêm vào `ignored`. Chúng ở lại máy cho đến khi được phân loại.
-- Nếu thiếu graphify, cài Python từ 3.10 trở lên, rồi chạy `scripts/apply.ps1` hoặc đăng nhập lại.
+- Nếu thiếu graphify, cài Python từ 3.10 trở lên, rồi chạy `scripts/apply.ps1` hoặc chờ bảo trì hằng tuần ở lần khởi động agy sau.
 - Nếu thiếu biến MCP, đặt các biến môi trường người dùng được nêu và mở lại PowerShell trước khi apply.
 - Nếu sync báo xung đột, nhờ agy duyệt và merge nhánh `sync/<profile>-<yyyyMMdd-HHmmss>`. Những chỉnh sửa xung đột được giữ ở đó để xem xét.
 - Nếu cập nhật không mở được PR, dùng link so sánh trong phần tóm tắt workflow hoặc log cập nhật, rồi kiểm tra thiết lập repo ở trên.

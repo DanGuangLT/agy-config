@@ -17,7 +17,7 @@ The script commands below use `powershell -NoProfile -ExecutionPolicy Bypass -Fi
 3. For the default project map tool, graphify, install Python 3.10 or newer if needed: `winget install Python.Python.3.13`. Check `python --version` afterward.
 4. Node.js and `npx` are optional for finding new skills with `npx skills find`. GitHub CLI is not needed on your machine.
 
-You can choose another installed project map skill, or `none`, instead of graphify. If you choose graphify without Python, the installer continues with the rest, reports what is missing, and `apply` retries at later logons.
+You can choose another installed project map skill, or `none`, instead of graphify. If you choose graphify without Python, the installer continues with the rest, reports what is missing, and `apply` retries during later weekly maintenance or when run manually.
 
 ## Install
 
@@ -32,7 +32,9 @@ Get-Content .\scripts\install.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
-Choose or create your own profile when asked. The installer asks for the reply language and project map tool, backs up the existing configuration, shows its planned actions, and asks for confirmation before registering scheduled tasks. It is safe to run again.
+Choose or create your own profile when asked. The installer asks for the reply language and project map tool, shows its planned actions, asks for confirmation, then backs up and applies the configuration. It registers no Windows scheduled tasks and removes the three tasks older versions created: `agy-config-apply`, `agy-config-sync`, and `agy-config-update`. It is safe to run again.
+
+Script prompts and messages are English only (`scripts/i18n/en.json`). Your profile's reply language remains configurable; its rule is generated in English, for example, "Always reply to the user in Vietnamese".
 
 Role is determined per machine by a dry-run push to `origin`, then stored locally. A machine with push access is an **owner**: it backs up configuration changes and runs weekly source updates. A machine without push access is a **follower**: it receives configuration and updates from `main` without publishing changes. A direct clone of the public upstream normally makes you a follower and gives you no automatic GitHub backup.
 
@@ -86,21 +88,20 @@ Third-party content is downloaded from upstream rather than stored in this repos
 
 Talk to agy normally, for example: “From now on, explain your changes before running them,” “Install skill X,” or “I'm moving to a new machine.” The `agy-self-config` skill helps edit the right profile or source file, run the scripts, and check the logs. You do not need another coding agent to maintain this setup.
 
-| When | Every machine | Owner machines additionally |
-|---|---|---|
-| At logon | `agy-config-apply`: receive configuration from `main` | `agy-config-sync`: capture local changes |
-| After agy finishes a turn | The Stop hook returns immediately | Starts a detached sync process |
-| Daily at 12:00 | — | `agy-config-sync` |
-| Sunday at 10:00 | — | `agy-config-update`: test upstream updates and push `update/sources` |
+When agy starts, the plugin's only hook, `SessionStart` (`agy-config-weekly` → `hooks/on-start.ps1`), checks `weekly.last` and `weekly-attempt.last` in `~/.agy-config-state`. If the last successful maintenance is at least 7 days old and the last attempt is at least 1 day old (or the respective stamps are missing), it starts `scripts/maintain.ps1` hidden in the background and returns immediately. Otherwise it does nothing. Nothing runs in the background while agy is closed, keeping RAM free for games and other work.
 
-Sync waits at least 10 minutes between automatic runs and prevents overlapping runs. Owner configuration changes go directly to `main`. Weekly source versions are reviewed in a PR before followers receive them; failed source updates roll back individually. The owner uses tested pending versions locally while the PR is awaiting review. Review and merge the weekly PR to publish those versions.
+On an owner machine, maintenance runs `apply` (first a full sync to back up this machine's configuration, then a pull and installation) followed by `update`, which tests upstream versions and pushes `update/sources` for a PR. A follower runs `apply` only. The week is marked done only if everything succeeds; failures are retried at the next agy start after at least 1 day.
+
+Changes made through the `agy-self-config` skill are backed up immediately with `scripts/sync.ps1 -Force` after each change. Owner configuration changes go directly to `main`. Weekly source versions are reviewed in a PR before followers receive them; failed source updates roll back individually. The owner uses tested pending versions locally while the PR is awaiting review. Review and merge the weekly PR to publish those versions.
 
 Manual commands, run from the clone:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\apply.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\sync.ps1 -Force
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\update.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\update.ps1 -NoPush
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\maintain.ps1
 ```
 
 `sync` and `update` publish only on owner machines; `-NoPush` tests source updates locally without pushing. Configuration capture excludes `trustedWorkspaces`, the selected model, machine names, conversation history, logs, caches, and unclassified skills. Secrets stop publication. Since the repository may be public, review your own rules and explicitly declared custom content before sharing them.
@@ -134,13 +135,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1 -RestoreBackup 20261111-120000
 ```
 
-The interface is `scripts/uninstall.ps1 [-RestoreBackup <stamp>]`. It unregisters the scheduled tasks and uninstalls `agy-self-config`. Third-party skills remain installed. Passing `-RestoreBackup` also restores the saved configuration from `~/.agy-config-backup/<stamp>`.
+The interface is `scripts/uninstall.ps1 [-RestoreBackup <stamp>]`. It uninstalls `agy-self-config` and removes any scheduled tasks left by older versions. Third-party skills remain installed. Passing `-RestoreBackup` also restores the saved configuration from `~/.agy-config-backup/<stamp>`.
 
 ## Troubleshooting
 
-- Read `~/.agy-config-state/logs` for install, apply, sync, and update results. Start with the latest file for the failing script.
+- Read `~/.agy-config-state/logs/<apply|sync|update|maintain>-yyyyMMdd.log`. Start with the latest file for the failing script.
+- Run `scripts/maintain.ps1` to force maintenance now. To make the hook run again sooner, delete `~/.agy-config-state/weekly.last`, then start agy; the 1-day limit since the last attempt still applies.
 - Check `~/.agy-config-state/unknown.json` for unclassified skills or plugins. Ask agy to declare their upstream source, mark them as your own in `ownSkills`/`ownPlugins`, or add them to `ignored`. They stay local until classified.
-- If graphify is missing, install Python 3.10 or newer, then run `scripts/apply.ps1` or sign in again.
+- If graphify is missing, install Python 3.10 or newer, then run `scripts/apply.ps1` or wait for weekly maintenance at a later agy start.
 - If MCP variables are missing, set the named user environment variables and reopen PowerShell before applying again.
 - If sync reports a conflict, ask agy to review and merge the `sync/<profile>-<yyyyMMdd-HHmmss>` branch. The conflicting edits are kept there for review.
 - If updates cannot open a PR, use the compare link in the workflow summary or update log and check the repository settings above.

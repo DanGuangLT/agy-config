@@ -7,11 +7,15 @@ description: Maintain this agy setup and its config repo. Use when the user want
 
 Your configuration lives in a git repo and is installed by its scripts. Change the repo, then let the scripts apply it. Editing files under `~/.gemini` directly works too, but only because `sync` copies them back into the repo afterwards.
 
+Weekly maintenance runs automatically when agy starts (at most once a week; failed runs retry at most daily). Force it now with `scripts/maintain.ps1`.
+
 ## Find the repo first
 
 Read `~/.agy-config-state/machine.json`. It holds `repoPath`, `profile` and `role` (`owner` can push to the repo; `follower` only receives).
 
 This step is done when you know all three values. If the file is missing, the setup is not installed: follow "New machine" below.
+
+After each configuration change on an owner machine, run `scripts/sync.ps1 -Force` to back it up immediately.
 
 ## Pick the branch that matches the request
 

@@ -26,7 +26,7 @@ Repo này cấu hình Antigravity CLI (`agy`) trên Windows. Gửi đóng góp b
 
 ## Quy tắc phát triển và kiểm tra
 
-- Chỉ dùng Windows PowerShell 5.1; mọi `.ps1` phải chỉ chứa ASCII. Thông báo đa ngôn ngữ nằm trong `scripts/i18n/*.json`. Markdown có thể chứa tiếng Việt.
+- Chỉ dùng Windows PowerShell 5.1; mọi `.ps1` phải chỉ chứa ASCII. Văn bản script hiển thị cho người dùng chỉ dùng tiếng Anh, trong `scripts/i18n/en.json`. Ngôn ngữ trả lời của profile tùy chỉnh được; quy tắc được sinh bằng tiếng Anh (ví dụ "Always reply to the user in Vietnamese"). Markdown có thể chứa tiếng Việt.
 - Ghi văn bản UTF-8 không BOM qua `Write-TextFile`; dùng lại hàm thư viện trong `scripts/lib/`. Gọi công cụ ngoài và mạng qua `Invoke-External`, `Invoke-Http` để test có thể mock.
 - Viết test Pester 5 thất bại trước khi đổi hành vi script, sau đó làm test đạt. Test cần kiểm tra hành vi thực tế.
 - Giữ nội dung bên thứ ba tại nguồn gốc với phiên bản đã khóa. Không chép nội dung đó vào repo.
