@@ -103,7 +103,7 @@ tests/unit/*.Tests.ps1 tests/integration/*.Tests.ps1 tests/fixtures/...
 
 - [ ] **Step 2: Write the failing tests** in `tests/unit/Core.Tests.ps1`. `BeforeAll` dot-sources `scripts/lib/All.ps1` and sets `$env:AGYCFG_HOME = Join-Path $TestDrive 'home'`.
   - `Get-AgyPaths honors AGYCFG_HOME`: `(Get-AgyPaths).SkillsDir | Should -Be (Join-Path $TestDrive 'home\.gemini\config\skills')`.
-  - `writes UTF-8 without BOM`: after `Write-TextFile $p <a Vietnamese sentence with diacritics>`, the first 3 bytes `Should -Not -Be @(0xEF,0xBB,0xBF)` and `Read-TextFile $p | Should -Be "Trả lời bằng tiếng Việt"`. Build the string from code points in the test file to keep it ASCII, e.g. `[char]0x1EA3`.
+  - `writes UTF-8 without BOM`: after `Write-TextFile $p <a Vietnamese sentence with diacritics>`, the first 3 bytes `Should -Not -Be @(0xEF,0xBB,0xBF)` and `Read-TextFile $p` returns the same sentence. Build the string from code points in the test file to keep it ASCII, e.g. `[char]0x1EA3`.
   - `Read-JsonFile returns default when missing` and `Read-JsonFile returns hashtables`: `(Read-JsonFile $p @{}).permissions.allow[0] | Should -Be 'command(git status)'`, and the type `Should -BeOfType [hashtable]`.
   - `Write-JsonFile round-trips non-ASCII`.
   - `Invoke-External returns exit code without throwing`: `(Invoke-External 'cmd.exe' @('/c','exit 3')).ExitCode | Should -Be 3`.

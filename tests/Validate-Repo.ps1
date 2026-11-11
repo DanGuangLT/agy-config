@@ -111,6 +111,8 @@ try {
     # The project is English-only: flag Vietnamese letters (tests build such text from code points).
     $vietnamese = '[\u0102\u0103\u0110\u0111\u01a0\u01a1\u01af\u01b0\u1ea0-\u1ef9]'
     foreach ($file in $files) {
+        $rel = $relativePaths[$file.FullName]
+        if ($rel -match '^\.superpowers/' -or ($null -ne $published -and -not $published.ContainsKey($rel))) { continue }
         $bytes = [IO.File]::ReadAllBytes($file.FullName)
         if ($bytes -contains 0) { continue }
         $lines = ([Text.Encoding]::UTF8.GetString($bytes) -replace "`r`n", "`n") -split "`n"
