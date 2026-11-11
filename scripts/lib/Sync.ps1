@@ -20,15 +20,11 @@ function Get-RepoChangedFiles([string]$RepoRoot) {
     }
 }
 
-function Get-ManagedPaths([string]$ProfileName, [bool]$IsOwner) {
-    # The only paths sync ever stages. Anything else in the clone (scripts, graphify-out, notes) is left alone.
-    $paths = @('profiles/' + $ProfileName + '/')
-    if ($IsOwner) { $paths += @('core/GEMINI.core.md', 'core/permissions.json', 'core/sources.json', 'core/sources.lock.json', 'THIRD_PARTY.md') }
-    return $paths
-}
-
 function Test-ManagedPath([string]$Path, [string[]]$Managed) {
+    # The only paths sync ever stages (see Get-ProfileLocation). Anything else in the shared clone
+    # (scripts, graphify-out, notes) is left alone; '*' means every file (a personal backup clone).
     foreach ($m in $Managed) {
+        if ($m -eq '*') { return $true }
         if ($m.EndsWith('/')) { if ($Path.StartsWith($m)) { return $true } }
         elseif ($Path -eq $m) { return $true }
     }
@@ -54,7 +50,8 @@ function Get-RepoBusyReason([string]$RepoRoot) {
 function Save-SyncCapture {
     param([string]$RepoRoot, $Machine, $Prof, $Applied)
     $paths = Get-AgyPaths
-    $isOwner = $Machine.role -eq 'owner'
+    # Core text is captured only on an owner whose profile lives in the shared clone it publishes.
+    $isOwner = $Machine.role -eq 'owner' -and -not $Machine.profileRoot
     $profDir = $Prof.Path
     $conflict = $false
 
@@ -77,7 +74,7 @@ function Save-SyncCapture {
     }
 
     # Permissions (profile part = machine minus core), three-way against the last apply.
-    $core = @(Read-JsonFile (Join-Path $RepoRoot 'core\permissions.json') @())
+    $core = @(Read-JsonFile (Get-SharedFile $RepoRoot $Prof 'permissions.json') @())
     $current = @(Get-MachinePermissions $paths.CliSettings | Where-Object { $core -notcontains $_ })
     $base = @(@($Applied.permissions) | Where-Object { $_ -and $core -notcontains $_ })
     $newPerms = @(Merge-ThreeWaySet -Repo @($Prof.Permissions) -Base $base -Current $current)
@@ -193,30 +190,33 @@ function Invoke-Sync {
     $machine = Get-MachineState
     if (-not $machine.profile) { & $log 'no profile configured for this machine' 'WARN'; return 0 }
     $isOwner = $machine.role -eq 'owner'
+    # The repository that holds the profile: the shared clone, or the user's personal backup clone.
+    $loc = Get-ProfileLocation $RepoRoot $machine
+    $gitRoot = $loc.GitRoot
     if (-not (Enter-RunLock 'config')) { & $log 'another apply/sync is running; skipped'; return 0 }
     try {
-        $prof = Get-Profile $RepoRoot $machine.profile
+        $prof = Get-Profile $RepoRoot $machine.profile $loc.Dir
         if (-not $Force -and -not $CaptureOnly -and -not (Test-Debounce 'sync' ([int]$prof.sync.debounceMinutes))) { return 0 }
-        $busy = Get-RepoBusyReason $RepoRoot
+        $busy = Get-RepoBusyReason $gitRoot
         if ($busy) { & $log "skipped: $busy" 'WARN'; return 5 }
 
-        $publish = $isOwner -and -not $CaptureOnly
+        $publish = ($isOwner -or $loc.Personal) -and -not $CaptureOnly
         if ($publish) {
-            $pull = Update-ConfigRepo $RepoRoot
+            $pull = Update-ConfigRepo $gitRoot
             if (-not $pull.Ok) { & $log "pull before sync failed: $($pull.Error)" 'WARN' }
-            $prof = Get-Profile $RepoRoot $machine.profile
+            $prof = Get-Profile $RepoRoot $machine.profile $loc.Dir
         }
         $cap = Save-SyncCapture -RepoRoot $RepoRoot -Machine $machine -Prof $prof -Applied (Get-AppliedState)
         if (-not $publish) { & $log 'captured local changes (no commit on this machine)'; return 0 }
 
-        $managed = Get-ManagedPaths $prof.name $isOwner
-        $changes = @(Get-RepoChangedFiles $RepoRoot | Where-Object { Test-ManagedPath $_.Path $managed })
+        $changes = @(Get-RepoChangedFiles $gitRoot | Where-Object { Test-ManagedPath $_.Path $loc.Managed })
         if ($changes.Count -eq 0) {
             # Nothing new, but an earlier commit may still be waiting to be pushed (offline last time).
+            # Counted against every origin branch, so it also works before origin has a main (new backup repo).
             $ahead = 0
-            try { $ahead = [int](Invoke-Git $RepoRoot @('rev-list', '--count', 'origin/main..HEAD')).Trim() } catch { }
+            try { $ahead = [int](Invoke-Git $gitRoot @('rev-list', '--count', 'HEAD', '--not', '--remotes=origin')).Trim() } catch { }
             if ($ahead -gt 0) {
-                try { Invoke-Git $RepoRoot @('push', '--quiet', 'origin', 'HEAD:main') | Out-Null; & $log "pushed $ahead earlier commit(s)" }
+                try { Invoke-Git $gitRoot @('push', '--quiet', 'origin', 'HEAD:main') | Out-Null; & $log "pushed $ahead earlier commit(s)" }
                 catch { & $log "push failed: $($_.Exception.Message)" 'ERROR'; Register-Run 'sync'; return 4 }
             }
             Register-Run 'sync'
@@ -225,7 +225,7 @@ function Invoke-Sync {
 
         $allowFile = Join-Path $RepoRoot 'tests\fixtures\allowed-emails.txt'
         $allowed = if (Test-Path $allowFile) { @(Get-Content $allowFile | Where-Object { $_ -and -not $_.StartsWith('#') }) } else { @() }
-        $files = @($changes | Where-Object { $_.Status -notmatch 'D' } | ForEach-Object { Join-Path $RepoRoot $_.Path })
+        $files = @($changes | Where-Object { $_.Status -notmatch 'D' } | ForEach-Object { Join-Path $gitRoot $_.Path })
         $hits = @(Find-Secrets $files -AllowedEmails $allowed)
         if ($hits.Count -gt 0) {
             # Keep the captured edits (never lose the user's text); just do not publish them.
@@ -239,7 +239,7 @@ function Invoke-Sync {
         $conflictHash = $null
         if ($cap.Conflict) {
             $sha = [Security.Cryptography.SHA256]::Create()
-            $blob = ($changes | Sort-Object { $_.Path } | ForEach-Object { $_.Path + "`n" + (Read-TextFile (Join-Path $RepoRoot $_.Path)) }) -join "`n--`n"
+            $blob = ($changes | Sort-Object { $_.Path } | ForEach-Object { $_.Path + "`n" + (Read-TextFile (Join-Path $gitRoot $_.Path)) }) -join "`n--`n"
             $conflictHash = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($blob))) -replace '-', ''
             $prev = Read-JsonFile $conflictState @{}
             if ($prev.hash -eq $conflictHash) {
@@ -250,28 +250,28 @@ function Invoke-Sync {
         }
 
         $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm'
-        Invoke-Git $RepoRoot (@('add', '-A', '--') + @($changes | ForEach-Object { $_.Path })) | Out-Null
+        Invoke-Git $gitRoot (@('add', '-A', '--') + @($changes | ForEach-Object { $_.Path })) | Out-Null
         $git = Resolve-Tool git
-        if ((Invoke-External $git @('diff', '--cached', '--quiet') $RepoRoot).ExitCode -eq 0) { Register-Run 'sync'; return 0 }
-        Invoke-Git $RepoRoot @('commit', '--quiet', '-m', "sync($($prof.name)): $stamp") | Out-Null
+        if ((Invoke-External $git @('diff', '--cached', '--quiet') $gitRoot).ExitCode -eq 0) { Register-Run 'sync'; return 0 }
+        Invoke-Git $gitRoot @('commit', '--quiet', '-m', "sync($($prof.name)): $stamp") | Out-Null
 
         $conflictBranch = $null
         if ($cap.Conflict) { $conflictBranch = 'sync/' + $prof.name + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss') }
         else {
-            $again = Update-ConfigRepo $RepoRoot
+            $again = Update-ConfigRepo $gitRoot
             if (-not $again.Ok) { $conflictBranch = 'sync/' + $prof.name + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss') }
         }
         if ($conflictBranch) {
-            Invoke-Git $RepoRoot @('push', '--quiet', 'origin', ('HEAD:refs/heads/' + $conflictBranch)) | Out-Null
-            Invoke-Git $RepoRoot @('fetch', '--quiet', 'origin') | Out-Null
+            Invoke-Git $gitRoot @('push', '--quiet', 'origin', ('HEAD:refs/heads/' + $conflictBranch)) | Out-Null
+            Invoke-Git $gitRoot @('fetch', '--quiet', 'origin') | Out-Null
             # --keep moves main back without touching unrelated uncommitted work in the clone.
-            Invoke-Git $RepoRoot @('reset', '--quiet', '--keep', 'origin/main') | Out-Null
+            Invoke-Git $gitRoot @('reset', '--quiet', '--keep', 'origin/main') | Out-Null
             if ($conflictHash) { Write-JsonFile $conflictState @{ hash = $conflictHash; branch = $conflictBranch } }
             & $log "changes conflict with main; pushed them to branch $conflictBranch for review" 'WARN'
             Register-Run 'sync'
             return 3
         }
-        try { Invoke-Git $RepoRoot @('push', '--quiet', 'origin', 'HEAD:main') | Out-Null }
+        try { Invoke-Git $gitRoot @('push', '--quiet', 'origin', 'HEAD:main') | Out-Null }
         catch { & $log "push failed: $($_.Exception.Message)" 'ERROR'; Register-Run 'sync'; return 4 }
         Remove-Item $conflictState -Force -ErrorAction SilentlyContinue
         Register-Run 'sync'

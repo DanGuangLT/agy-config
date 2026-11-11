@@ -2,7 +2,7 @@
 # Entry types: github-skills, git-plugin, packaged-plugin (Source.GitHub.ps1); pip-tool, marketplace (Source.Other.ps1).
 
 function Get-SourceList([string]$RepoRoot, $ProfileData) {
-    $core = @(Read-JsonFile (Join-Path $RepoRoot 'core\sources.json') @())
+    $core = @(Read-JsonFile (Get-SharedFile $RepoRoot $ProfileData 'sources.json') @())
     $byId = [ordered]@{}
     foreach ($s in $core) { $byId[$s.id] = $s }
     foreach ($s in @($ProfileData.Sources)) { if ($s) { $byId[$s.id] = $s } }
@@ -16,7 +16,7 @@ function Get-SourceList([string]$RepoRoot, $ProfileData) {
 
 function Get-EffectiveLock([string]$RepoRoot, $ProfileData, $Pending) {
     $lock = @{}
-    $core = Read-JsonFile (Join-Path $RepoRoot 'core\sources.lock.json') @{}
+    $core = Read-JsonFile (Get-SharedFile $RepoRoot $ProfileData 'sources.lock.json') @{}
     foreach ($k in $core.Keys) { $lock[$k] = $core[$k] }
     if ($ProfileData.Lock -is [hashtable]) { foreach ($k in $ProfileData.Lock.Keys) { $lock[$k] = $ProfileData.Lock[$k] } }
     if ($Pending -and $Pending.versions -is [hashtable]) { foreach ($k in $Pending.versions.Keys) { $lock[$k] = $Pending.versions[$k] } }

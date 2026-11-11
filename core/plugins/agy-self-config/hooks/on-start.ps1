@@ -18,6 +18,7 @@ function Get-StampAgeDays([string]$Path) {
     return ((Get-Date) - $t).TotalDays
 }
 
+$response = '{}'
 try {
     $h = if ($env:AGYCFG_HOME) { $env:AGYCFG_HOME } else { $HOME }
     $stateDir = Join-Path $h '.agy-config-state'
@@ -28,13 +29,25 @@ try {
         $retryOk = (Get-StampAgeDays (Join-Path $stateDir 'weekly-attempt.last')) -ge 1
         if ($m.repoPath -and $due -and $retryOk) {
             $script = Join-Path $m.repoPath 'scripts\maintain.ps1'
-            if (Test-Path $script) {
+            if (Test-Path -LiteralPath $script -PathType Leaf) {
                 $argLine = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $script + '"'
                 Start-Process -FilePath 'powershell' -ArgumentList $argLine -WindowStyle Hidden
+            } else {
+                $message = 'agy-config repo folder was not found: "' + $m.repoPath + '". Run scripts\install.ps1 from the clone''s new folder to fix it.'
+                $logDir = Join-Path $stateDir 'logs'
+                if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir -ErrorAction Stop | Out-Null }
+                $now = Get-Date
+                $utf8 = New-Object Text.UTF8Encoding $false
+                $log = Join-Path $logDir ('hook-' + $now.ToString('yyyyMMdd') + '.log')
+                $line = $now.ToString('yyyy-MM-dd HH:mm:ss') + ' [WARN] ' + $message + [Environment]::NewLine
+                [IO.File]::AppendAllText($log, $line, $utf8)
+                [IO.File]::WriteAllText((Join-Path $stateDir 'weekly-attempt.last'), $now.ToString('o'), $utf8)
+                # agy's SessionStart contract accepts nested system messages in injectSteps.
+                $response = @{ injectSteps = @(@{ systemMessage = @{ systemMessage = $message } }) } | ConvertTo-Json -Depth 5 -Compress
             }
         }
     }
 } catch { }
 
-Write-Output '{}'
+Write-Output $response
 exit 0

@@ -6,6 +6,7 @@ function Get-AgyPaths {
     $state = Join-Path $h '.agy-config-state'
     @{
         Home        = $h
+        AgyDir      = Join-Path $h '.gemini'
         GeminiMd    = Join-Path $h '.gemini\GEMINI.md'
         CliSettings = Join-Path $h '.gemini\antigravity-cli\settings.json'
         SkillsDir   = Join-Path $h '.gemini\config\skills'
@@ -19,6 +20,7 @@ function Get-AgyPaths {
         CacheDir    = Join-Path $state 'cache'
         BackupRoot  = Join-Path $h '.agy-config-backup'
         DefaultRepo = Join-Path $h '.agy-config'
+        PersonalDir = Join-Path $h '.agy-config-personal'
     }
 }
 
