@@ -1,0 +1,10 @@
+[
+  "command(git status)",
+  "command(git status --short)",
+  "command(git branch --show-current)",
+  "command(git log --oneline -15)",
+  "command(git diff)",
+  "command(git diff --stat)",
+  "command(git diff --cached)",
+  "command(git remote -v)"
+]
