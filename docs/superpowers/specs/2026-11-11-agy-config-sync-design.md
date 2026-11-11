@@ -60,13 +60,14 @@ Người dùng (chủ repo) đã mất công cấu hình Antigravity CLI (`agy`)
 
 Repo **không chứa bản sao** skill của bên thứ ba. Repo chỉ ghi chúng lấy từ đâu (`sources.json`) và phiên bản đã chạy tốt (`sources.lock.json`). Lợi: luôn lấy được bản mới, repo nhẹ, đúng giấy phép, quay lui được.
 
-Bốn loại nguồn. Mọi nguồn trên GitHub đều tải bằng `git` ở đúng SHA commit, vì cách đó khóa và quay lui được chắc chắn:
+Năm loại nguồn. Mọi nguồn trên GitHub đều tải bằng `git` ở đúng SHA commit, vì cách đó khóa và quay lui được chắc chắn:
 
 | Loại | Ví dụ hiện có | Cài (ở SHA khóa) | Cập nhật | Khóa phiên bản |
 |---|---|---|---|---|
 | `github-skills` | `mattpocock/skills` (38 skill), `vercel-labs/skills` (find-skills) | Tải thư mục từng skill (sparse checkout) rồi chép vào `~/.gemini/config/skills/<tên>` | Lấy SHA mới nhất của nhánh mặc định | SHA commit |
 | `git-plugin` | `obra/superpowers` (MIT) | `git clone` vào `~/.gemini/config/plugins/<tên>`, `checkout` SHA | `git fetch` + SHA mới nhất | SHA commit |
 | `packaged-plugin` | `anthropics/knowledge-work-plugins` → `engineering`, `design`; `anthropics/skills` → `mcp-builder`, `pdf`, `docx`, `xlsx`, `pptx` | Tải thư mục con, đóng gói thành plugin (`plugin.json` + `skills/`), rồi `agy plugin install <thư-mục>` | Tải bản mới nhất, đóng gói lại | SHA commit |
+| `pip-tool` | `graphifyy` (graphify; Apache-2.0 + MIT). Là công cụ **bản đồ dự án mặc định**; chỉ cài khi profile chọn nó (mục 5.1) | `python -m pip install --user graphifyy==<phiên bản>` rồi `graphify install --platform antigravity-windows` (công cụ tự cài skill cho Antigravity) | Cài bản mới nhất trên PyPI rồi chạy lại `graphify install` | Số phiên bản PyPI |
 | `marketplace` | `chrome-devtools-plugin`, `gemini-api`, `modern-web-guidance-plugin` (chợ `antigravity-plugins-official`) | `agy plugin install <tên>@<chợ>` | Cài lại bản mới nhất | Ghi số phiên bản để theo dõi. `agy` không cho cài đúng một phiên bản, nên loại này **chấp nhận trôi phiên bản**; để quay lui, giữ bản sao lần chạy tốt gần nhất ở `~/.agy-config-state/snapshots/<tên>/` |
 
 Công cụ `skills` của vercel-labs (`npx skills …`) chỉ dùng để **tìm** skill mới, và để `sync` biết người dùng vừa tự cài skill gì: đọc nguồn + đường dẫn từ `~/.agents/.skill-lock.json` rồi ghi thành mục `github-skills`.
@@ -80,7 +81,7 @@ Vì sao `engineering`, `design` là plugin chứ không là skill lẻ: chúng c
 1. Khớp một mục trong `sources.json` → là nguồn ngoài, chỉ ghi nguồn.
 2. Có tên trong `ownSkills`/`ownPlugins` của `profile.json` → là đồ tự viết. Lưu nguyên văn trong `profiles/<tên>/skills/` hoặc `profiles/<tên>/plugins/` và được đẩy lên.
 3. Có tên trong `ignored` của `profile.json` → bỏ qua.
-4. Còn lại là **chưa rõ** (ví dụ `graphify` trên máy chủ repo, không có trong file khóa). Thứ chưa rõ **không bao giờ** được đẩy lên; nó chỉ được ghi vào `~/.agy-config-state/unknown.json`. Skill `agy-self-config` hỏi người dùng rồi xếp vào một trong ba nhóm trên: khai báo nguồn, đánh dấu tự viết, hoặc bỏ qua.
+4. Còn lại là **chưa rõ**. Thứ chưa rõ **không bao giờ** được đẩy lên; nó chỉ được ghi vào `~/.agy-config-state/unknown.json`. Skill `agy-self-config` hỏi người dùng rồi xếp vào một trong ba nhóm trên: khai báo nguồn, đánh dấu tự viết, hoặc bỏ qua.
 
 ## 5. Cấu trúc repo
 
@@ -126,11 +127,18 @@ docs/
   "language": "vi",
   "sync": { "debounceMinutes": 10 },
   "update": { "day": "Sunday" },
+  "projectMap": { "tool": "graphify" },
   "ownSkills": [],
   "ownPlugins": [],
   "ignored": []
 }
 ```
+
+`projectMap.tool` là skill agy dùng để có bản đồ kiến thức của dự án khi vào dự án (mục 7):
+
+- `"graphify"` (mặc định): cài nguồn `graphifyy`.
+- Tên một skill khác người dùng đang dùng: không cài graphify; quy tắc định hướng gọi skill đó.
+- `"none"`: bỏ bước bản đồ dự án.
 
 ### 5.3 Vai trò của từng máy
 
@@ -168,7 +176,9 @@ Cách chạy, ghi trong README:
 Các bước của script:
 
 1. Kiểm tra `git`, `node`/`npx`, `agy`; thiếu thì in link cài và dừng.
-2. Hỏi profile: dùng profile có sẵn, hoặc tạo mới từ `_template`. Khi tạo mới thì hỏi ngôn ngữ trả lời (`vi`/`en`/khác).
+2. Hỏi profile: dùng profile có sẵn, hoặc tạo mới từ `_template`. Khi tạo mới thì hỏi:
+   - ngôn ngữ trả lời (`vi`/`en`/khác);
+   - công cụ bản đồ dự án: Enter để dùng graphify; hoặc gõ tên skill khác đang dùng; hoặc `none`.
 3. Sao lưu cấu hình hiện có của agy vào `~/.agy-config-backup/<thời-gian>/` trước khi đổi gì.
 4. Chạy `apply`.
 5. Xác định vai trò máy (mục 5.3). Đăng ký tác vụ Windows Task Scheduler cho người dùng hiện tại, không cần quyền admin: mọi máy chạy `apply` lúc đăng nhập; máy owner chạy thêm `sync` hằng ngày và `update` hằng tuần.
@@ -228,7 +238,10 @@ Chủ repo chọn: **qua PR, một cú bấm mỗi tuần**.
 
 1. `update` đẩy file khóa mới lên nhánh `update/sources`, rồi mở PR "Weekly source updates / Cập nhật nguồn tuần này" vào `main`. Nội dung PR là bảng: nguồn, phiên bản cũ → mới, nguồn bị quay lui. Nếu PR tuần trước chưa merge thì cập nhật luôn PR đó thay vì mở PR mới.
 2. Máy owner vẫn **dùng bản mới ngay**: bản khóa đang chờ được giữ ở `~/.agy-config-state/pending.lock.json`. Trên máy owner, `apply` ưu tiên bản chờ cho các nguồn có trong đó, nên không bị hạ phiên bản lúc đăng nhập. PR được merge thì xóa bản chờ. PR bị đóng mà không merge thì lần `apply` sau quay về file khóa trên `main`.
-3. Mở PR cần GitHub CLI (`gh`) đã đăng nhập trên máy owner. `install` kiểm tra; thiếu thì in hướng dẫn (`winget install GitHub.cli`, `gh auth login`). Khi không có `gh`, `update` vẫn đẩy nhánh lên rồi ghi link tạo PR vào log.
+3. **Không cần cài gì thêm trên máy** để mở PR: máy owner chỉ `git push` nhánh `update/sources`. Workflow `.github/workflows/update-pr.yml` chạy trên GitHub khi nhánh đó được đẩy lên, rồi tạo hoặc cập nhật PR bằng `GITHUB_TOKEN` có sẵn.
+   - Repo cần bật một lần: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests". README ghi rõ bước này cho chủ repo và người fork.
+   - PR do `GITHUB_TOKEN` tạo không tự kích hoạt workflow khác, nên `validate.yml` chạy cả khi có push lên `update/**`. Kết quả kiểm tra gắn với commit, nên vẫn hiện trên PR.
+   - Nếu workflow không mở được PR (chưa bật quyền), nó ghi link "Create pull request" vào phần tóm tắt của lần chạy; `update` cũng ghi link đó vào log trên máy.
 4. Thay đổi cấu hình cá nhân của owner (`sync`: quy tắc, skill tự viết, quyền) vẫn đẩy thẳng lên `main`, không qua PR.
 
 ## 7. Tự bảo trì: plugin `agy-self-config`
@@ -242,6 +255,10 @@ Plugin của repo, cài trên mọi máy. Gồm:
   - Gỡ xung đột nhánh `sync/*` cùng người dùng.
   - Tìm skill mới bằng `npx skills find` và gợi ý cho người dùng.
   - Gửi đóng góp lên repo gốc bằng PR khi người dùng không phải owner.
+- `core/GEMINI.core.md` có thêm bước **bản đồ dự án** trong phần định hướng khi vào dự án, dùng công cụ trong `projectMap.tool`. `apply` ghi tên công cụ vào vùng `profile` của `GEMINI.md`.
+  - Với graphify: có `graphify-out/` thì đọc `GRAPH_REPORT.md` và dùng `graphify query/path/explain` thay vì mở nhiều file. Chưa có thì tự chạy `/graphify .` để tạo, rồi báo cho người dùng.
+  - Với công cụ khác: gọi skill đó theo cách tương tự.
+  - Lý do (chủ repo yêu cầu): agy có ngay bản đồ kiến thức của dự án, ít tốn token khi tìm file.
 - `core/GEMINI.core.md` có một dòng trỏ tới skill này. Sau khi cài, mọi yêu cầu kiểu "từ giờ bạn hãy…" đều đi qua skill, nên cấu hình luôn theo ý người dùng và được sao lưu.
 
 ## 8. Đóng góp và an toàn
@@ -264,7 +281,8 @@ Plugin của repo, cài trên mọi máy. Gồm:
 ## 9. Ràng buộc
 
 - Windows 10/11, Windows PowerShell 5.1 (có sẵn), không cần quyền admin.
-- Cần sẵn: `git`, Node.js (cho `npx skills`), `agy` ≥ 1.5.
+- Cần sẵn: `git`, `agy` ≥ 1.5, Node.js (chỉ để tìm skill bằng `npx skills`). Chỉ khi chọn graphify mới cần Python ≥ 3.10. Không cần GitHub CLI.
+- Chọn graphify mà thiếu Python: `install` vẫn cài mọi thứ khác, báo rõ graphify chưa cài được kèm cách cài Python (`winget install Python.Python.3.13`). `apply` thử lại ở mỗi lần đăng nhập.
 - Script gọi agy qua lệnh CLI (`agy plugin …`), không sửa trực tiếp file nội bộ của agy ngoài các file trong bảng mục 3. Lý do: agy đổi định dạng file nội bộ thì script vẫn chạy.
 - Hook phải trả lời trong 30 giây, nên mọi việc nặng chạy tách rời.
 
@@ -274,6 +292,9 @@ Plugin của repo, cài trên mọi máy. Gồm:
 - Người dùng nhắm tới: cả người Việt lẫn quốc tế.
 - Tự động: tự đồng bộ, tự cập nhật công nghệ trên máy owner, không hỏi trước.
 - Bản cập nhật nguồn chỉ đến máy người khác sau khi chủ repo merge PR hằng tuần (mục 6.5).
+- Không cài GitHub CLI trên máy; PR do GitHub Actions mở.
+- Bước định hướng luôn dùng một công cụ bản đồ dự án. graphify là mặc định, không bắt buộc: người dùng đã có skill khác tương tự thì dùng skill đó và không cài graphify.
+- Chủ repo đã duyệt toàn bộ bản thiết kế (2026-11-11).
 - Tự lập: sau khi xây xong, việc bảo trì do agy làm, không cần Claude Code.
 - README hướng dẫn người vừa tải agy về.
 
