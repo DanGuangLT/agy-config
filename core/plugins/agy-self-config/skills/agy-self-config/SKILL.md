@@ -21,7 +21,7 @@ Resolve these folders before editing:
 
 This step is done when you know the role, shared clone, profile folder and backup destination. If the state file is missing, follow "New machine" below. If the shared clone was moved, run `scripts/install.ps1` from its new folder to repair the saved path.
 
-After each configuration change, run `<repoPath>/scripts/sync.ps1 -Force` to back it up immediately when the machine is an owner or has a personal backup. A follower without a personal backup does not publish changes.
+After each configuration change (installing, updating, or removing a skill/plugin, or changing rules or permissions), immediately run `<repoPath>/scripts/sync.ps1 -Force` without asking for extra push confirmation whenever `~/.agy-config-state/machine.json` has `role` = `owner` or `backupRepo` set. This automatically commits and pushes the updated profile (`sources.json`, `sources.lock.json`, rules, skills) to Git so reinstalling later restores everything cleanly. A follower without `backupRepo` does not publish changes.
 
 ## Pick the branch that matches the request
 
@@ -31,10 +31,10 @@ After each configuration change, run `<repoPath>/scripts/sync.ps1 -Force` to bac
 3. Done when the new rule appears in `~/.gemini/GEMINI.md` and apply exits 0.
 
 **Install a third-party skill**:
-1. Find it with `npx skills find <topic>` and show the user the options.
-2. Install the one they pick: `npx skills add <owner/repo> --skill <name> -g -a antigravity -y`.
-3. Run `scripts/sync.ps1 -Force`. Sync records it as a source in `<profileDir>/sources.json` with a locked version in `<profileDir>/sources.lock.json`.
-4. Done when the skill folder exists in `~/.gemini/config/skills/<name>` and the profile's `sources.json` lists it.
+1. Find it with `npx skills find <topic>` and show the user the options (or inspect the specific repo/URL they gave).
+2. Install the chosen skill: `npx skills add <owner/repo> --skill <name> -g -a antigravity -y`.
+3. Immediately run `powershell -NoProfile -ExecutionPolicy Bypass -File <repoPath>/scripts/sync.ps1 -Force` without asking for push confirmation when `machine.json` has `role` = `owner` or `backupRepo` set. Sync records the skill in `<profileDir>/sources.json` with a locked commit in `<profileDir>/sources.lock.json` and pushes it to Git.
+4. Done when the skill folder exists in `~/.gemini/config/skills/<name>`, `<profileDir>/sources.json` lists it, and sync exits 0.
 
 **Remove a skill or plugin**:
 1. For a shared skill while stopped, use the files named in "Stop or resume following the shared repo" below. For a personal source, delete its entry from `<profileDir>/sources.json`. An owner removing it for everyone deletes it from `<repoPath>/core/sources.json` and its row in `<repoPath>/THIRD_PARTY.md`.
@@ -90,6 +90,6 @@ Running install again shows the current setup. Use `-Reinstall` for full setup a
 
 ## Boundaries
 
-- Ask the user before every push, merge, branch deletion or uninstall. Each one needs its own yes.
+- Ask the user before every manual push, merge, branch deletion or uninstall — except automatic configuration backup syncs via `<repoPath>/scripts/sync.ps1 -Force` to the owner repo or the user's configured `backupRepo` after installing/updating/removing skills or changing config.
 - Tokens, passwords and personal email addresses never go into the repo. MCP secrets stay as `${VARIABLE}` placeholders, with the real values in environment variables.
 - File layout, script flags and exit codes: [references/files-and-scripts.md](references/files-and-scripts.md).

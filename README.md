@@ -103,6 +103,7 @@ This table follows [core/sources.json](core/sources.json). A profile can add sou
 |---|---|---|
 | [Matt Pocock skills](https://github.com/mattpocock/skills) | Engineering, planning, research, writing, and other skills listed in the source file | Individual skills at a locked Git commit |
 | [Vercel Labs skills](https://github.com/vercel-labs/skills) | `find-skills` | Individual skill at a locked Git commit |
+| [Cloudflare Security Audit](https://github.com/cloudflare/security-audit-skill) | `security-audit` | Individual skill at a locked Git commit |
 | [Superpowers](https://github.com/obra/superpowers) | Development workflow plugin | Git plugin at a locked commit |
 | [Anthropic Engineering](https://github.com/anthropics/knowledge-work-plugins) | `engineering` | Packaged plugin at a locked Git commit |
 | [Anthropic Design](https://github.com/anthropics/knowledge-work-plugins) | `design` | Packaged plugin at a locked Git commit |
@@ -124,7 +125,7 @@ When agy starts, the plugin's only hook, `SessionStart` (`agy-config-weekly` →
 
 On an owner machine, maintenance runs `apply` (first a full sync to back up this machine's configuration, then a pull and installation) followed by `update`, which tests upstream versions and pushes `update/sources` for a PR. A follower runs `apply` only. The week is marked done only if everything succeeds; failures are retried at the next agy start after at least 1 day.
 
-Changes made through the `agy-self-config` skill are backed up immediately with `scripts/sync.ps1 -Force` after each change. Owner configuration changes go directly to `main` in the shared clone. Personal backups go to `main` in the repository recorded as `backupRepo`; the profile files live at the root of `profileRoot` (`~/.agy-config-personal` by default). Without `profileRoot`, they live in `<repoPath>/profiles/<profile>/`. Weekly source versions are reviewed in a PR before followers receive them; failed source updates roll back individually. The owner uses tested pending versions locally while the PR is awaiting review. Review and merge the weekly PR to publish those versions. Sources listed only in a personal backup stay at their saved versions.
+Changes made through the `agy-self-config` skill are backed up immediately with `scripts/sync.ps1 -Force` after each change without extra confirmation prompts when `machine.json` has `role` = `owner` or a personal `backupRepo` configured. Owner configuration changes go directly to `main` in the shared clone. Personal backups go to `main` in the repository recorded as `backupRepo`; the profile files live at the root of `profileRoot` (`~/.agy-config-personal` by default). Without `profileRoot`, they live in `<repoPath>/profiles/<profile>/`. Weekly source versions are reviewed in a PR before followers receive them; failed source updates roll back individually. The owner uses tested pending versions locally while the PR is awaiting review. Review and merge the weekly PR to publish those versions. Sources listed only in a personal backup stay at their saved versions, and reinstalling later with the same repository URL restores all saved skills and settings automatically.
 
 Manual commands, run from the clone:
 

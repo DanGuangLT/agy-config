@@ -6,6 +6,7 @@ This repository does not copy third-party skills. `core/sources.json` records wh
 |---|---|---|
 | `mattpocock-skills` | https://github.com/mattpocock/skills | MIT |
 | `vercel-labs-skills` | https://github.com/vercel-labs/skills | MIT |
+| `cloudflare-security-audit-skill` | https://github.com/cloudflare/security-audit-skill | MIT |
 | `superpowers` | https://github.com/obra/superpowers | MIT |
 | `engineering`, `design` | https://github.com/anthropics/knowledge-work-plugins | Apache-2.0 |
 | `anthropic-dev-skills` | https://github.com/anthropics/skills (folders `skills/mcp-builder`, `skills/pdf`, `skills/docx`, `skills/xlsx`, `skills/pptx`) | Apache-2.0 (a `LICENSE.txt` in each skill folder; the repository README says the document skills are Apache-2.0 as well) |

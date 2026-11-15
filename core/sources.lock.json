@@ -1,6 +1,7 @@
 {
   "anthropic-dev-skills": "2c5958ecac7cee2b583967a2c4981d0f4a75c579",
   "chrome-devtools-plugin": "1.10.1",
+  "cloudflare-security-audit-skill": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8",
   "design": "877a617b435ee2edfb002d9a3703c0a1a03aa1ba",
   "engineering": "877a617b435ee2edfb002d9a3703c0a1a03aa1ba",
   "gemini-api": "2.5.0",

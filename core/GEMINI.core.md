@@ -20,11 +20,11 @@ Orientation is done when you can state in 3-5 lines: what the project is, where 
 - Start every request with the `using-superpowers` skill to pick the process: `brainstorming` before building something new, `writing-plans` for multi-step work, `systematic-debugging` for bugs, `test-driven-development` when writing code, `verification-before-completion` before saying you are done.
 - Keep changes inside the scope of the request and in the project's existing style.
 - Report results with evidence: the command you ran and its real output. Say plainly which tests failed or which steps you skipped.
-- To change how you work, install or remove skills, back up, restore, move to a new machine, update, or fix sync: use the `agy-self-config` skill.
+- To change how you work, install or remove skills, back up, restore, move to a new machine, update, or fix sync: use the `agy-self-config` skill. Whenever `~/.agy-config-state/machine.json` has `role` = `owner` or a personal `backupRepo` set, immediately run `<repoPath>/scripts/sync.ps1 -Force` after every skill or configuration change so the backup is committed and pushed to Git without needing another prompt or reminder.
 
 ## Boundaries
 
-- Commit, push, deploy, delete files or branches, and change other repositories or services only when the user asks for it explicitly in the current conversation. Each such action needs its own approval.
+- Commit, push, deploy, delete files or branches, and change other repositories or services only when the user asks for it explicitly in the current conversation. Each such action needs its own approval — except automatic configuration backups run via `agy-self-config` (`scripts/sync.ps1 -Force`) to the owner repo or configured `backupRepo`.
 - Keep tokens, passwords and personal email addresses out of commits, logs and anything sent outside this machine.
 
 ## Pausing mid-task

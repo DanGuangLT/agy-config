@@ -317,5 +317,19 @@
       "modern-web-guidance-plugin"
     ],
     "type": "marketplace"
+  },
+  {
+    "id": "cloudflare-security-audit-skill",
+    "provides": [
+      "security-audit"
+    ],
+    "repo": "https://github.com/cloudflare/security-audit-skill",
+    "skills": [
+      {
+        "name": "security-audit",
+        "path": "skills/security-audit"
+      }
+    ],
+    "type": "github-skills"
   }
 ]
