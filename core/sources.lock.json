@@ -1,13 +1,13 @@
 {
-  "anthropic-dev-skills": "2c5958ecac7cee2b583967a2c4981d0f4a75c579",
+  "anthropic-dev-skills": "e4bb5d960d87126ff3b3a8af1a104b7db67560ba",
   "chrome-devtools-plugin": "1.10.1",
   "cloudflare-security-audit-skill": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8",
-  "design": "877a617b435ee2edfb002d9a3703c0a1a03aa1ba",
-  "engineering": "877a617b435ee2edfb002d9a3703c0a1a03aa1ba",
-  "gemini-api": "2.5.0",
-  "graphify": "0.9.100",
-  "mattpocock-skills": "4ae2317ddb22b046e26455e4f9c9b3aaaf62212d",
-  "modern-web-guidance-plugin": "1.0.0",
+  "design": "b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e",
+  "engineering": "b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e",
+  "gemini-api": "2.7.0",
+  "graphify": "0.9.112",
+  "mattpocock-skills": "5863806dd4e15c63174bee4e7515a4256792ecfa",
+  "modern-web-guidance-plugin": "1.0.1",
   "superpowers": "22f0b463e7a5e579904dd6211a520321035526f7",
-  "vercel-labs-skills": "e781cb4d07433dfe1d19e924ed45cc61738c55ec"
+  "vercel-labs-skills": "57217cf86ba38148a57af9e90d14a4c049558330"
 }
