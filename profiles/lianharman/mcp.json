@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "supermemory": {
+      "headers": {
+        "Authorization": "${SUPERMEMORY_AUTHORIZATION}"
+      },
+      "serverUrl": "https://mcp.supermemory.ai/mcp"
+    }
+  }
+}

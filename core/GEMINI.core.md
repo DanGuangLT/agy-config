@@ -5,11 +5,14 @@
 Do all of these steps, in order, before changing anything. Browse folders and find and read files with your built-in file tools; keep the terminal for the git commands in step 2 and for build/test commands.
 
 1. Read the project's own instructions if present: `AGENTS.md`, `GEMINI.md`, `CLAUDE.md`, then `README`.
-2. Check git state with exactly these commands (they are pre-approved): `git status`, `git branch --show-current`, `git log --oneline -15`.
+2. Check git state with exactly these commands (they are pre-approved): `git status`, `git branch --show-current`, `git log --oneline -15`, and `git remote -v`.
 3. Project map, using the `Project map tool` named in your profile section below:
-   - `graphify`: when `graphify-out/` exists, read `graphify-out/GRAPH_REPORT.md` and answer questions about files and structure with `graphify query`, `graphify path` and `graphify explain` instead of opening many files. When it does not exist, run `/graphify .` to build it, then tell the user.
-   - Any other tool: invoke that skill the same way.
-   - `none` or no tool named: skip this step.
+  - `graphify`:
+    - When `graphify-out/` exists: read `graphify-out/GRAPH_REPORT.md` and answer questions about files and structure with `graphify query`, `graphify path` and `graphify explain` instead of opening many files.
+    - When `graphify-out/` does not exist AND the project is a Git repository with a configured remote (`git remote -v` is non-empty): ensure `graphify-out/` is listed in the repo's `.gitignore` (append `graphify-out/` to `.gitignore` if missing, without committing it) so the workspace stays clean, then run `/graphify .` to build the map and inform the user.
+    - When the folder is not a Git repo or has no remote configured yet: do not auto-run `/graphify .`; ask the user first.
+  - Any other tool: invoke that skill the same way.
+  - `none` or no tool named: skip this step.
 4. Find unfinished work: plans and specs in `docs/superpowers/plans/` and `docs/superpowers/specs/` (tasks still `- [ ]`), an "In progress" section at the end of a plan, a `TODO` or `HANDOFF` file.
 5. Find the build, test and run commands in the manifest (`package.json`, `pyproject.toml`, `*.csproj`, ...).
 
@@ -20,12 +23,15 @@ Orientation is done when you can state in 3-5 lines: what the project is, where 
 - Start every request with the `using-superpowers` skill to pick the process: `brainstorming` before building something new, `writing-plans` for multi-step work, `systematic-debugging` for bugs, `test-driven-development` when writing code, `verification-before-completion` before saying you are done.
 - Keep changes inside the scope of the request and in the project's existing style.
 - Report results with evidence: the command you ran and its real output. Say plainly which tests failed or which steps you skipped.
-- To change how you work, install or remove skills, back up, restore, move to a new machine, update, or fix sync: use the `agy-self-config` skill. Whenever `~/.agy-config-state/machine.json` has `role` = `owner` or a personal `backupRepo` set, immediately run `<repoPath>/scripts/sync.ps1 -Force` after every skill or configuration change so the backup is committed and pushed to Git without needing another prompt or reminder.
+- To change how you work, install or remove skills, back up, restore, move to a new machine, update, or fix sync: use the `agy-self-config` skill.
+  - **Cross-platform path safety:** Never pass a literal `~` path to Windows `cmd`. Always resolve the home directory explicitly (`%USERPROFILE%\.agy-config-state\machine.json` on Windows, `$HOME/.agy-config-state/machine.json` on macOS/Linux) and read it with built-in file tools.
+  - **Automatic backup sync:** Whenever `machine.json` has `role` = `owner` or a personal `backupRepo` set, verify `<repoPath>/scripts/sync.ps1` exists and immediately run it via PowerShell (`powershell -NoProfile -ExecutionPolicy Bypass -File "<repoPath>\scripts\sync.ps1" -Force` on Windows, or `pwsh -NoProfile -File "<repoPath>/scripts/sync.ps1" -Force` on macOS/Linux) after every skill or configuration change so the backup is committed and pushed without needing another reminder.
 
 ## Boundaries
 
-- Commit, push, deploy, delete files or branches, and change other repositories or services only when the user asks for it explicitly in the current conversation. Each such action needs its own approval — except automatic configuration backups run via `agy-self-config` (`scripts/sync.ps1 -Force`) to the owner repo or configured `backupRepo`.
-- Keep tokens, passwords and personal email addresses out of commits, logs and anything sent outside this machine.
+- Commit, push, deploy, delete files or branches, and change other repositories or services only when the user asks for it explicitly in the current conversation. Each such action needs its own approval — except automatic configuration backups run via `agy-self-config` (`scripts/sync.ps1 -Force`) to the owner repo or configured `backupRepo`, and adding `graphify-out/` to `.gitignore` during orientation.
+- Keep tokens, passwords, secrets, and personal email addresses out of source code, logs, documentation, external memory stores (`mem0`, `supermemory`), and anything else sent outside this machine.
+- For Git commits only: standard local Git author metadata and explicit `Co-authored-by` trailers requested by the user in the current conversation are permitted.
 
 ## Pausing mid-task
 

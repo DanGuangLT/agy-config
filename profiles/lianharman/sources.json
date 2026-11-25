@@ -1,1 +1,56 @@
-[]
+[
+  {
+    "id": "auth0",
+    "marketplace": "antigravity-plugins-partners",
+    "plugin": "auth0",
+    "provides": [
+      "auth0"
+    ],
+    "type": "marketplace"
+  },
+  {
+    "id": "cloudflare",
+    "marketplace": "antigravity-plugins-partners",
+    "plugin": "cloudflare",
+    "provides": [
+      "cloudflare"
+    ],
+    "type": "marketplace"
+  },
+  {
+    "id": "context7",
+    "marketplace": "antigravity-plugins-partners",
+    "plugin": "context7",
+    "provides": [
+      "context7"
+    ],
+    "type": "marketplace"
+  },
+  {
+    "id": "netlify",
+    "marketplace": "antigravity-plugins-partners",
+    "plugin": "netlify",
+    "provides": [
+      "netlify"
+    ],
+    "type": "marketplace"
+  },
+  {
+    "id": "supabase",
+    "marketplace": "antigravity-plugins-partners",
+    "plugin": "supabase",
+    "provides": [
+      "supabase"
+    ],
+    "type": "marketplace"
+  },
+  {
+    "id": "vercel-plugin",
+    "marketplace": "antigravity-plugins-partners",
+    "plugin": "vercel-plugin",
+    "provides": [
+      "vercel-plugin"
+    ],
+    "type": "marketplace"
+  }
+]
