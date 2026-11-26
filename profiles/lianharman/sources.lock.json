@@ -2,7 +2,7 @@
   "auth0": "2.8.0",
   "cloudflare": "1.0.4",
   "context7": "1.0.1",
-  "netlify": "1.9.0",
+  "netlify": "1.9.1",
   "supabase": "0.1.17-agy.a224d9f1",
-  "vercel-plugin": "0.56.0-agy.4b94cb5a"
+  "vercel-plugin": "0.57.0-agy.4b94cb5a"
 }

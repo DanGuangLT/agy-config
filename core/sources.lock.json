@@ -2,12 +2,12 @@
   "anthropic-dev-skills": "e4bb5d960d87126ff3b3a8af1a104b7db67560ba",
   "chrome-devtools-plugin": "1.10.1",
   "cloudflare-security-audit-skill": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8",
-  "design": "b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e",
-  "engineering": "b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e",
-  "gemini-api": "2.7.0",
-  "graphify": "0.9.112",
-  "mattpocock-skills": "5863806dd4e15c63174bee4e7515a4256792ecfa",
-  "modern-web-guidance-plugin": "1.0.1",
+  "design": "5e504ae11498f2b8daa30d86b7dab97b2ecd8092",
+  "engineering": "5e504ae11498f2b8daa30d86b7dab97b2ecd8092",
+  "gemini-api": "2.9.0",
+  "graphify": "0.9.120",
+  "mattpocock-skills": "6f7f7831a625f040a8e06a0e7954826b87ce775a",
+  "modern-web-guidance-plugin": "1.0.2",
   "superpowers": "22f0b463e7a5e579904dd6211a520321035526f7",
   "vercel-labs-skills": "57217cf86ba38148a57af9e90d14a4c049558330"
 }
